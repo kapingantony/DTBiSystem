@@ -1,0 +1,39 @@
+name: Branch Name Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate source branch name
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          pattern='^(feature|bugfix|hotfix|release)/[a-z0-9]+([._/-][a-z0-9]+)*$'
+
+          if [[ "$BRANCH_NAME" =~ $pattern ]]; then
+            echo "Branch name '$BRANCH_NAME' is valid."
+            exit 0
+          fi
+
+          echo "Error: branch name '$BRANCH_NAME' is invalid."
+          echo "Use one of these prefixes: feature/, bugfix/, hotfix/, release/."
+          echo "After the prefix, use lowercase letters, numbers, hyphens, underscores, dots, and slash-separated sections."
+          echo "Valid examples:"
+          echo "  feature/startup-profile"
+          echo "  feature/partnership-form"
+          echo "  bugfix/logout-redirect"
+          echo "  bugfix/missing-dashboard-template"
+          echo "  hotfix/security-update"
+          echo "  release/v1.0.0"
+          exit 1
