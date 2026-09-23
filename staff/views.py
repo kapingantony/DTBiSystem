@@ -16,7 +16,8 @@ from .models import (
 from .forms import (
     StartupForm, StartupOwnerForm, FounderFormSet, OpportunityFormSet,
     FundingFormSet, KPIFormSet, PitchDeckFormSet,
-    ServiceOfferedFormSet, PartnershipForm
+    ServiceOfferedFormSet, PartnershipForm, AccountForm,
+    ProfilePreferencesForm
 )
 
 User = get_user_model()
@@ -39,6 +40,24 @@ def get_profile(user):
     """Return the user's profile, creating it when it does not exist yet."""
     profile, _ = UserProfile.objects.get_or_create(user=user)
     return profile
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def settings_view(request):
+    profile = get_profile(request.user)
+    account_form = AccountForm(request.POST or None, instance=request.user)
+    preferences_form = ProfilePreferencesForm(request.POST or None, instance=profile)
+    if request.method == 'POST' and account_form.is_valid() and preferences_form.is_valid():
+        account_form.save()
+        preferences_form.save()
+        messages.success(request, 'Your account preferences have been saved.')
+        return redirect('staff:settings')
+    return render(request, 'settings.html', {
+        'account_form': account_form,
+        'preferences_form': preferences_form,
+        'profile': profile,
+    })
 
 
 def landing(request):

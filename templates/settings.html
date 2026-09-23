@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - DTBi | BUNI Innovation Management System{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <div class="settings-intro">
+        <div>
+            <span class="overview-kicker">Account centre</span>
+            <h1>Make the workspace yours.</h1>
+            <p>Manage your profile information, display preferences, and account security from one place.</p>
+        </div>
+        <span class="settings-status"><i class="fas fa-shield-halved"></i> Private account area</span>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="settings-message"><i class="fas fa-check-circle"></i>{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" class="settings-form">
+        {% csrf_token %}
+        <section class="settings-card">
+            <div class="settings-card-heading"><span class="settings-card-icon"><i class="fas fa-user"></i></span><div><h2>Profile information</h2><p>Keep your personal and organization details current.</p></div></div>
+            <div class="settings-form-grid">
+                <div class="settings-field"><label for="{{ account_form.first_name.id_for_label }}">First name</label>{{ account_form.first_name }}</div>
+                <div class="settings-field"><label for="{{ account_form.last_name.id_for_label }}">Last name</label>{{ account_form.last_name }}</div>
+                <div class="settings-field"><label for="{{ account_form.email.id_for_label }}">Email address</label>{{ account_form.email }}</div>
+                <div class="settings-field"><label>Username</label><input class="form-input" value="{{ request.user.username }}" disabled></div>
+                <div class="settings-field"><label for="{{ preferences_form.company_name.id_for_label }}">Company name</label>{{ preferences_form.company_name }}</div>
+                <div class="settings-field"><label for="{{ preferences_form.phone.id_for_label }}">Phone</label>{{ preferences_form.phone }}</div>
+                <div class="settings-field settings-field-wide"><label for="{{ preferences_form.company_website.id_for_label }}">Company website</label>{{ preferences_form.company_website }}</div>
+                <div class="settings-field settings-field-wide"><label for="{{ preferences_form.bio.id_for_label }}">Short bio</label>{{ preferences_form.bio }}</div>
+            </div>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><span class="settings-card-icon"><i class="fas fa-sliders"></i></span><div><h2>Display and general preferences</h2><p>Choose how the workspace should feel and notify you.</p></div></div>
+            <div class="settings-preference-row"><div><strong>Display theme</strong><small>Light is recommended for shared workspaces.</small></div>{{ preferences_form.theme }}</div>
+            <label class="settings-toggle"><span>{{ preferences_form.email_notifications }}<span class="settings-toggle-box"></span></span><span><strong>Email notifications</strong><small>Receive important account and platform updates.</small></span></label>
+        </section>
+
+        <section class="settings-card">
+            <div class="settings-card-heading"><span class="settings-card-icon"><i class="fas fa-lock"></i></span><div><h2>Account management</h2><p>Protect your account and keep access under your control.</p></div></div>
+            <div class="settings-action-list"><a href="{% url 'staff:password_change' %}" class="settings-action"><span><i class="fas fa-key"></i><strong>Change password</strong><small>Update your sign-in password regularly.</small></span><i class="fas fa-arrow-right"></i></a><a href="{% url 'staff:user_logout' %}" class="settings-action settings-action-danger"><span><i class="fas fa-right-from-bracket"></i><strong>Sign out</strong><small>End this session on the current device.</small></span><i class="fas fa-arrow-right"></i></a></div>
+        </section>
+
+        <div class="settings-actions"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save preferences</button></div>
+    </form>
+</div>
+{% endblock %}

@@ -134,3 +134,6 @@ LOGIN_REDIRECT_URL = "/staff/"
 LOGOUT_REDIRECT_URL = "/"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Development password-reset messages are printed in the server console.
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

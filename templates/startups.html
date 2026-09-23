@@ -38,7 +38,7 @@
         <option value="pending">Pending</option>
         <option value="inactive">Inactive</option>
     </select>
-    <a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>
+    {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
 </div>
 
 <div class="startup-type-filter">
@@ -90,7 +90,7 @@
                                 <i class="fas fa-rocket"></i>
                                 <h3>No startups yet</h3>
                                 <p>Add your first startup to get started.</p>
-                                <a href="{% url 'staff:startup_create' %}" class="btn btn-primary" style="margin-top:12px;"><i class="fas fa-plus"></i> Add Startup</a>
+                                {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary" style="margin-top:12px;"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
                             </div>
                         </td>
                     </tr>

@@ -255,6 +255,12 @@ class UserProfile(models.Model):
     is_email_verified = models.BooleanField(default=False)
     verification_code = models.CharField(max_length=6, blank=True)
     date_verified = models.DateTimeField(null=True, blank=True)
+    theme = models.CharField(
+        max_length=20,
+        choices=[('light', 'Light'), ('dark', 'Dark'), ('system', 'Use device setting')],
+        default='light',
+    )
+    email_notifications = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.user.username} ({self.get_user_type_display})"

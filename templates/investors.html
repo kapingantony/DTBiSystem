@@ -5,6 +5,7 @@
 
 {% block content %}
 <div class="investors-page">
+    {% if not user.is_staff %}<div class="read-only-notice"><i class="fas fa-eye"></i><span>Investor overview</span><small>Sign in as staff to manage investor records.</small><a href="{% url 'staff:user_login' %}">Sign in</a></div>{% endif %}
     <div class="filter-bar">
         <div class="search-box">
             <i class="fas fa-search"></i>
@@ -24,7 +25,9 @@
             <option value="agritech">AgriTech</option>
             <option value="edtech">EdTech</option>
         </select>
+        {% if user.is_authenticated and user.is_staff %}
         <button id="addInvestorBtn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Add Investor</button>
+        {% endif %}
     </div>
 
     <div class="stats-grid">
@@ -175,6 +178,7 @@
     </div>
 </div>
 
+{% if user.is_authenticated and user.is_staff %}
 <div id="investorModal" style="display:none; position:fixed; inset:0; background:rgba(12,22,44,0.6); z-index:1000; align-items:center; justify-content:center;">
     <div style="width:min(520px,90vw); background:#fff; border-radius:16px; padding:24px; box-shadow:0 18px 48px rgba(0,0,0,0.18);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
@@ -221,4 +225,5 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}

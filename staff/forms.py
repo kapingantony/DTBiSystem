@@ -1,8 +1,34 @@
 from django import forms
+from django.contrib.auth.models import User
 from .models import (
     Startup, Founder, Opportunity, Funding,
-    KPI, PitchDeck, ServiceOffered, Partnership
+    KPI, PitchDeck, ServiceOffered, Partnership, UserProfile
 )
+
+
+class AccountForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email']
+        widgets = {
+            'first_name': forms.TextInput(attrs={'class': 'form-input'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-input'}),
+            'email': forms.EmailInput(attrs={'class': 'form-input'}),
+        }
+
+
+class ProfilePreferencesForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['company_name', 'bio', 'phone', 'company_website', 'theme', 'email_notifications']
+        widgets = {
+            'company_name': forms.TextInput(attrs={'class': 'form-input'}),
+            'bio': forms.Textarea(attrs={'class': 'form-textarea', 'rows': 3}),
+            'phone': forms.TextInput(attrs={'class': 'form-input'}),
+            'company_website': forms.URLInput(attrs={'class': 'form-input'}),
+            'theme': forms.Select(attrs={'class': 'form-select'}),
+            'email_notifications': forms.CheckboxInput(attrs={'class': 'settings-checkbox'}),
+        }
 
 
 class StartupForm(forms.ModelForm):
