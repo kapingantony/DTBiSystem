@@ -340,6 +340,24 @@ class LoginNotification(models.Model):
         return f"{self.user.username} logged in at {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
 
 
+class SiteVisit(models.Model):
+    """Stores one current visitor record per browser session."""
+    session_key = models.CharField(max_length=40, unique=True)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='site_visits'
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_seen']
+
+    def __str__(self):
+        return f"Visitor {self.session_key}"
+
+
 class Partnership(models.Model):
     TYPE_CHOICES = [
         ('strategic', 'Strategic Partnership'),

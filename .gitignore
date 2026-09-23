@@ -1,0 +1,13 @@
+# Local virtual environment
+.venv/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# Django local files
+*.log
+media/
+
+# Local development settings
+.env

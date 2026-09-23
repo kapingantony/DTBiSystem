@@ -1,12 +1,25 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Register — ManagedTBI{% endblock %}
+{% block title %}Create Account — DTBi | BUNI Innovation Management System{% endblock %}
 {% block page_title %}Register{% endblock %}
 
 {% block content %}
-<div class="card auth-card" style="max-width: 400px; margin: 40px auto;">
-    <div class="card-body">
-        <h3 class="card-title text-center mb-3">Create Account</h3>
+<div class="auth-shell">
+    <div class="auth-intro">
+        <span class="auth-eyebrow"><i class="fas fa-seedling"></i> Join the innovation network</span>
+        <h1>Build your next chapter.</h1>
+        <p>Create a profile for your startup and bring your people, progress, opportunities, and proof of growth together.</p>
+        <div class="auth-intro-points">
+            <span><i class="fas fa-check"></i> Startup profile workspace</span>
+            <span><i class="fas fa-check"></i> Funding and KPI tracking</span>
+        </div>
+    </div>
+    <div class="auth-card">
+        <div class="auth-card-header">
+            <img src="{% static 'img/brands/dtbi logo.png' %}" alt="DTBi logo">
+            <div><span class="auth-card-kicker">DTBi | BUNI</span><h2>Create account</h2></div>
+        </div>
         
         {% if messages %}
         {% for message in messages %}
@@ -16,7 +29,7 @@
         {% endfor %}
         {% endif %}
 
-        <form method="post" style="margin-top: 20px;">
+        <form method="post" class="auth-form">
             {% csrf_token %}
             
             <div class="form-group">
@@ -43,12 +56,10 @@
                 </select>
             </div>
             
-            <button type="submit" class="btn btn-primary w-100">Create Account</button>
+            <button type="submit" class="btn btn-primary w-100 auth-submit">Create Account <i class="fas fa-arrow-right"></i></button>
             
-            <div class="text-center mt-3">
-                <small>Already have an account? <a href="{% url 'staff:user_login' %}">Sign in here</a></small>
-            </div>
         </form>
+        <p class="auth-footer-note">Already have an account? <a href="{% url 'staff:user_login' %}">Sign in</a></p>
     </div>
 </div>
 {% endblock %}

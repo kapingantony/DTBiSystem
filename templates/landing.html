@@ -1,49 +1,117 @@
 {% extends "base.html" %}
 
-{% block title %}ManagedTBI — Startup Hub{% endblock %}
-{% block page_title %}ManagedTBI{% endblock %}
+{% block title %}DTBi — System Overview{% endblock %}
+{% block page_title %}System Overview{% endblock %}
 
 {% block content %}
-<style>
-    .landing-hero { min-height: 80vh; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; }
-    .landing-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, var(--navy-800), var(--navy-900)); opacity: 0.9; }
-    .landing-hero * { position: relative; z-index: 1; }
-    .landing-badge { width: 60px; height: 60px; background: var(--gold-500); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 24px; }
-    .landing-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 40px; max-width: 600px; margin-left: auto; margin-right: auto; }
-    .landing-feature { background: var(--white); padding: 24px; border-radius: var(--radius); text-align: center; box-shadow: var(--shadow); transition: var(--transition); }
-    .landing-feature:hover { transform: translateY(-4px); }
-    .landing-feature i { font-size: 1.8rem; color: var(--navy-600); margin-bottom: 12px; display: block; }
-    .landing-feature h4 { font-size: 1rem; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
-    .landing-feature p { font-size: 0.85rem; color: var(--gray-500); }
-    .cta-button { display: inline-block; padding: 12px 32px; background: var(--navy-600); color: var(--white); border-radius: var(--radius-sm); text-decoration: none; font-size: 1rem; font-weight: 600; margin-top: 24px; transition: var(--transition); }
-    .cta-button:hover { background: var(--navy-700); box-shadow: var(--shadow-md); }
-</style>
-
-<div class="landing-hero">
-    <div>
-        <div class="landing-badge"><i class="fas fa-rocket"></i></div>
-        <h1 style="font-size: 2.5rem; font-weight: 800; color: var(--white); margin-bottom: 8px;">ManagedTBI</h1>
-        <p style="font-size: 1.2rem; color: var(--navy-100); margin-bottom: 30px;">Your platform for startup management, funding tracking, and investor relations.</p>
-        
-        <div class="landing-features">
-            <div class="landing-feature">
-                <i class="fas fa-users"></i>
-                <h4>Manage Startups</h4>
-                <p>Track startup profiles, founders, and opportunities</p>
-            </div>
-            <div class="landing-feature">
-                <i class="fas fa-coins"></i>
-                <h4>Funding & Tracking</h4>
-                <p>Monitor funding rounds and KPI performance</p>
-            </div>
-            <div class="landing-feature">
-                <i class="fas fa-handshake"></i>
-                <h4>Partnerships</h4>
-                <p>Submit collaboration requests</p>
+<main class="overview-page">
+    <section class="overview-hero">
+        <div class="overview-hero-copy">
+            <span class="overview-eyebrow"><i class="fas fa-sparkles"></i> DTBi management system</span>
+            <h1>One clear view of the innovation landscape.</h1>
+            <p>Manage startup profiles, founders, funding, opportunities, performance indicators, pitch decks, services, and partnerships from one focused workspace.</p>
+            <div class="overview-actions">
+                <a href="{% url 'staff:user_login' %}" class="overview-primary-action"><i class="fas fa-arrow-right"></i> Enter workspace</a>
+                <a href="{% url 'staff:partnership_form' %}" class="overview-secondary-action">Partner with us</a>
             </div>
         </div>
-        
-        <a href="{% url 'staff:user_login' %}" class="cta-button">Get Started</a>
-    </div>
-</div>
+        <div class="overview-hero-mark" aria-hidden="true">
+            <i class="fas fa-chart-line"></i>
+            <span>Live overview</span>
+        </div>
+    </section>
+
+    <section class="overview-search-section" aria-label="Search the system overview">
+        <form method="get" class="overview-search-form">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <input type="search" name="q" value="{{ search_query }}" placeholder="Search startups by name, industry, or description..." aria-label="Search startups">
+            <button type="submit">Search</button>
+        </form>
+    </section>
+
+    <section class="overview-section-head">
+        <div>
+            <span class="overview-kicker">At a glance</span>
+            <h2>Platform intelligence</h2>
+        </div>
+        <span class="overview-updated"><i class="fas fa-circle"></i> Live from the system</span>
+    </section>
+
+    <section class="overview-stats-grid" aria-label="System statistics">
+        <article class="overview-stat-card">
+            <span class="overview-stat-icon"><i class="fas fa-rocket"></i></span>
+            <div><span class="overview-stat-label">Startups</span><strong>{{ system_stats.startups }}</strong><small>Profiles in the hub</small></div>
+        </article>
+        <article class="overview-stat-card">
+            <span class="overview-stat-icon"><i class="fas fa-users"></i></span>
+            <div><span class="overview-stat-label">Founders</span><strong>{{ system_stats.founders }}</strong><small>People building forward</small></div>
+        </article>
+        <article class="overview-stat-card">
+            <span class="overview-stat-icon"><i class="fas fa-handshake"></i></span>
+            <div><span class="overview-stat-label">Opportunities</span><strong>{{ system_stats.opportunities }}</strong><small>Open paths for growth</small></div>
+        </article>
+        <article class="overview-stat-card">
+            <span class="overview-stat-icon"><i class="fas fa-coins"></i></span>
+            <div><span class="overview-stat-label">Funding tracked</span><strong>${{ system_stats.funding|floatformat:0 }}</strong><small>Recorded across startups</small></div>
+        </article>
+    </section>
+
+    {% if search_query %}
+    <section class="overview-results">
+        <div class="overview-section-head">
+            <div><span class="overview-kicker">Search results</span><h2>Matches for “{{ search_query }}”</h2></div>
+            <a href="{% url 'landing' %}" class="overview-clear-search">Clear search</a>
+        </div>
+        {% if startup_results %}
+        <div class="overview-result-list">
+            {% for startup in startup_results %}
+            <a class="overview-result" href="{% url 'staff:startup_profile' slug=startup.slug %}">
+                <span class="overview-result-avatar"><i class="fas fa-rocket"></i></span>
+                <span><strong>{{ startup.name }}</strong><small>{{ startup.industry|default:"Startup profile" }} · {{ startup.get_status_display }}</small></span>
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}<p class="overview-empty">No startup matched that search.</p>{% endif %}
+    </section>
+    {% endif %}
+
+    <section class="overview-capabilities">
+        <div class="overview-section-head"><div><span class="overview-kicker">What this system manages</span><h2>Built around real work</h2></div></div>
+        <div class="overview-capability-grid">
+            <article><i class="fas fa-building"></i><h3>Startup profiles</h3><p>Keep company identity, incubation, contracts, and completion progress together.</p></article>
+            <article><i class="fas fa-chart-simple"></i><h3>Performance and funding</h3><p>Track KPIs, funding records, targets, and the evidence behind growth.</p></article>
+            <article><i class="fas fa-file-lines"></i><h3>Opportunity readiness</h3><p>Organize founders, services, pitch decks, and opportunities in one profile.</p></article>
+            <article><i class="fas fa-people-arrows"></i><h3>Partnerships</h3><p>Give partners a direct path to submit collaboration requests to the hub.</p></article>
+        </div>
+    </section>
+
+    <section class="visitor-pulse" aria-label="Visitor activity">
+        <div class="visitor-pulse-heading"><span class="overview-kicker"><i class="fas fa-signal"></i> Visitor pulse</span><h2>People viewing the system</h2><p>Unique browser sessions recorded by the platform. Updated live.</p></div>
+        <div class="visitor-pulse-grid">
+            <div><strong data-visitor-count="total">{{ visitor_counts.total|default:0 }}</strong><span>Total visitors</span><small>Since launch</small></div>
+            <div><strong data-visitor-count="today">{{ visitor_counts.today|default:0 }}</strong><span>Today</span><small>Visitors today</small></div>
+            <div><strong data-visitor-count="week">{{ visitor_counts.week|default:0 }}</strong><span>This week</span><small>Last 7 days</small></div>
+            <div><strong data-visitor-count="month">{{ visitor_counts.month|default:0 }}</strong><span>This month</span><small>Since month start</small></div>
+        </div>
+    </section>
+</main>
+<script>
+    (function () {
+        const countNodes = document.querySelectorAll('[data-visitor-count]');
+        const numberFormat = new Intl.NumberFormat();
+
+        function refreshVisitorPulse() {
+            fetch('{% url "staff:visitor_stats" %}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(response => response.ok ? response.json() : Promise.reject(response.status))
+                .then(data => countNodes.forEach(node => {
+                    node.textContent = numberFormat.format(data[node.dataset.visitorCount] || 0);
+                }))
+                .catch(() => {});
+        }
+
+        refreshVisitorPulse();
+        window.setInterval(refreshVisitorPulse, 30000);
+    }());
+</script>
 {% endblock %}

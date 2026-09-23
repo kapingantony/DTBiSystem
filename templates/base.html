@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Managed TBI — Startup Hub{% endblock %}</title>
+    <title>{% block title %}DTBi | BUNI Innovation Management System{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="{% static 'style/style.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -17,19 +17,22 @@
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-logo">TBI</div>
+                <a class="sidebar-logo-pair" href="{% url 'landing' %}" aria-label="DTBi and BUNI Innovation Management System">
+                    <img src="{% static 'img/brands/dtbi logo.png' %}" alt="DTBi logo">
+                    <img src="{% static 'img/brands/buni logo.png' %}" alt="Buni logo">
+                </a>
                 <div class="sidebar-brand">
-                    <h1>ManagedTBI</h1>
-                    <span>Startup Hub</span>
+                    <h1>DTBi | BUNI</h1>
+                    <span>Innovation Management System</span>
                 </div>
             </div>
 
             <nav class="sidebar-nav">
                 <div class="nav-section">Explore</div>
                 <div class="nav-item">
-                    <a href="{% url 'staff:dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <a href="{% url 'landing' %}" class="nav-link {% if request.resolver_match.url_name == 'landing' %}active{% endif %}">
                         <i class="fas fa-th-large"></i>
-                        <span>Dashboard</span>
+                        <span>Overview</span>
                     </a>
                 </div>
                 {% if user.is_authenticated %}
@@ -128,18 +131,18 @@
                     <button class="menu-toggle" id="menuToggle">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <h2 class="page-title">{% block page_title %}Dashboard{% endblock %}</h2>
+                    <h2 class="page-title">{% block page_title %}Overview{% endblock %}</h2>
                 </div>
                 <div class="topbar-right">
                     <div class="external-links">
-                        <a href="https://bunihub1.pythonanywhere.com/" target="_blank" class="ext-link">
-                            <i class="fas fa-external-link-alt"></i> Buni
+                        <a href="https://bunihub1.pythonanywhere.com/" target="_blank" rel="noopener noreferrer" class="ext-link brand-link" aria-label="Buni" title="Buni">
+                            <img src="{% static 'img/brands/buni logo.png' %}" alt="Buni logo" class="brand-logo brand-logo-buni">
                         </a>
-                        <a href="https://teknohama.or.tz/" target="_blank" class="ext-link">
-                            <i class="fas fa-external-link-alt"></i> DTBi
+                        <a href="https://teknohama.or.tz/" target="_blank" rel="noopener noreferrer" class="ext-link brand-link" aria-label="DTBi" title="DTBi">
+                            <img src="{% static 'img/brands/dtbi logo.png' %}" alt="DTBi logo" class="brand-logo brand-logo-dtbi">
                         </a>
-                        <a href="https://fursalab.com" target="_blank" class="ext-link">
-                            <i class="fas fa-external-link-alt"></i> FursaLab
+                        <a href="https://fursalab.com" target="_blank" rel="noopener noreferrer" class="ext-link brand-link" aria-label="Fursa Hub" title="Fursa Hub">
+                            <span class="brand-logo brand-logo-fursa" aria-hidden="true"></span>
                         </a>
                     </div>
                     <button class="topbar-btn" title="Notifications">

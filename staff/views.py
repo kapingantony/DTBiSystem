@@ -3,13 +3,15 @@ from django.contrib import messages
 from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q, Sum
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 
 from .models import (
     Startup, Founder, Opportunity, Funding,
     KPI, PitchDeck, ServiceOffered, Partnership,
-    UserProfile, RegistrationRate, ProfileView, LoginNotification
+    UserProfile, RegistrationRate, ProfileView, LoginNotification, SiteVisit
 )
 from .forms import (
     StartupForm, StartupOwnerForm, FounderFormSet, OpportunityFormSet,
@@ -20,6 +22,19 @@ from .forms import (
 User = get_user_model()
 
 
+def get_visitor_counts():
+    now = timezone.localtime()
+    today = now.date()
+    week_start = today - timezone.timedelta(days=6)
+    month_start = today.replace(day=1)
+    return {
+        'total': SiteVisit.objects.count(),
+        'today': SiteVisit.objects.filter(last_seen__date=today).count(),
+        'week': SiteVisit.objects.filter(last_seen__date__gte=week_start).count(),
+        'month': SiteVisit.objects.filter(last_seen__date__gte=month_start).count(),
+    }
+
+
 def get_profile(user):
     """Return the user's profile, creating it when it does not exist yet."""
     profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -27,10 +42,33 @@ def get_profile(user):
 
 
 def landing(request):
-    """Public landing page for visitors, dashboard for logged-in users."""
-    if request.user.is_authenticated:
-        return index(request)
-    return render(request, 'landing.html')
+    """Public system overview with live platform statistics."""
+    search_query = request.GET.get('q', '').strip()
+    startup_results = Startup.objects.all()
+    if search_query:
+        startup_results = startup_results.filter(
+            Q(name__icontains=search_query)
+            | Q(industry__icontains=search_query)
+            | Q(description__icontains=search_query)
+        )
+
+    system_stats = {
+        'startups': Startup.objects.count(),
+        'founders': Founder.objects.count(),
+        'opportunities': Opportunity.objects.count(),
+        'funding': Funding.objects.aggregate(total=Sum('amount'))['total'] or 0,
+    }
+    return render(request, 'landing.html', {
+        'search_query': search_query,
+        'startup_results': startup_results[:8],
+        'visitor_counts': get_visitor_counts(),
+        'system_stats': system_stats,
+    })
+
+
+def visitor_stats(request):
+    """Return current visitor totals for the live overview counter."""
+    return JsonResponse(get_visitor_counts())
 
 
 @login_required
