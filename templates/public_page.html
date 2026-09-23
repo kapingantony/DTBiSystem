@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}ManagedTBI — Public Dashboard{% endblock %}
+{% block page_title %}Public Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    .public-header { background: var(--navy-800); color: var(--white); padding: 24px; border-radius: var(--radius) var(--radius) 0 0; margin: -1px -1px 24px; }
+    .public-user-info { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .public-user-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--gold-500); color: var(--navy-900); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; }
+    .public-user-name { font-weight: 600; }
+    .public-nav { display: flex; gap: 24px; margin-bottom: 32px; }
+    .public-nav-btn { padding: 8px 16px; background: var(--navy-600); color: var(--white); border-radius: var(--radius-sm); text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: var(--transition); }
+    .public-nav-btn:hover { background: var(--navy-700); }
+    .public-nav-btn.secondary { background: var(--white); color: var(--navy-900); border: 1px solid var(--navy-300); }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: var(--white); padding: 20px; border-radius: var(--radius); text-align: center; box-shadow: var(--shadow-sm); transition: var(--transition); }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-value { font-size: 1.5rem; font-weight: 800; color: var(--navy-600); }
+    .stat-label { font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+    .action-btn { display: inline-block; padding: 10px 20px; background: var(--navy-600); color: var(--white); border-radius: var(--radius-sm); text-decoration: none; font-size: 0.9rem; margin: 4px; transition: var(--transition); }
+    .action-btn:hover { background: var(--navy-700); }
+    .action-btn.secondary { background: var(--white); color: var(--navy-600); border: 1px solid var(--navy-300); }
+</style>
+
+<div class="public-header">
+    <div class="public-user-info">
+        <div class="public-user-avatar">{{ request.user.username|first }}</div>
+        <div>
+            <span class="public-user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+            <small style="color: var(--navy-100);">({{ user.profile.user_type|title }})</small>
+        </div>
+    </div>
+</div>
+
+<div class="public-nav">
+    <a href="{% url 'staff:startup_create' %}" class="action-btn"><i class="fas fa-plus"></i> New Startup</a>
+    <a href="{% url 'staff:partnership_form' %}" class="action-btn secondary"><i class="fas fa-handshake"></i> Partnership Request</a>
+</div>
+
+{% if profile.is_admin %}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="total-startups">Loading...</div>
+            <div class="stat-label">Total Startups</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="total-funding">Loading...</div>
+            <div class="stat-label">Total Funding</div>
+        </div>
+    </div>
+{% endif %}
+
+<div style="margin-top: 40px;">
+    <h3>Quick Actions</h3>
+    <p>Select your role from the dashboard to access full features.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update stats for admins
+    {% if profile.is_admin %}
+    fetch('/api/startup-count/')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('total-startups').textContent = data.count;
+        });
+    fetch('/api/total-funding/')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('total-funding').textContent = '$' + data.total;
+        });
+    {% endif %}
+</script>
+{% endblock %}

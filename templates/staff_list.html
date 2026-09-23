@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Staff — ManagedTBI{% endblock %}
+{% block page_title %}Staff Management{% endblock %}
+
+{% block content %}
+<div class="staff-page">
+    <div class="filter-bar">
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input id="staffSearch" type="text" placeholder="Search staff...">
+        </div>
+        <select id="staffRoleFilter" class="filter-select">
+            <option value="all">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+            <option value="coordinator">Coordinator</option>
+            <option value="analyst">Analyst</option>
+            <option value="lead">Lead</option>
+        </select>
+        <button id="addStaffBtn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Add Staff</button>
+    </div>
+
+    <div class="card">
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Department</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffTableBody">
+                        <tr data-name="Admin User" data-role="admin" data-department="management" data-email="admin@managedtbi.com" data-status="active">
+                            <td class="fw-600">Admin User</td>
+                            <td>System Admin</td>
+                            <td>Management</td>
+                            <td>admin@managedtbi.com</td>
+                            <td><span class="badge-status active"><span class="dot-sm"></span> Active</span></td>
+                            <td><button class="btn btn-sm btn-outline edit-staff-btn" type="button">Edit</button></td>
+                        </tr>
+                        <tr data-name="Sarah Johnson" data-role="manager" data-department="startups" data-email="sarah@managedtbi.com" data-status="active">
+                            <td class="fw-600">Sarah Johnson</td>
+                            <td>Program Manager</td>
+                            <td>Startups</td>
+                            <td>sarah@managedtbi.com</td>
+                            <td><span class="badge-status active"><span class="dot-sm"></span> Active</span></td>
+                            <td><button class="btn btn-sm btn-outline edit-staff-btn" type="button">Edit</button></td>
+                        </tr>
+                        <tr data-name="Michael Chen" data-role="coordinator" data-department="mentors" data-email="michael@managedtbi.com" data-status="active">
+                            <td class="fw-600">Michael Chen</td>
+                            <td>Mentor Coordinator</td>
+                            <td>Mentors</td>
+                            <td>michael@managedtbi.com</td>
+                            <td><span class="badge-status active"><span class="dot-sm"></span> Active</span></td>
+                            <td><button class="btn btn-sm btn-outline edit-staff-btn" type="button">Edit</button></td>
+                        </tr>
+                        <tr data-name="Grace Adeyemi" data-role="analyst" data-department="investors" data-email="grace@managedtbi.com" data-status="active">
+                            <td class="fw-600">Grace Adeyemi</td>
+                            <td>Investment Analyst</td>
+                            <td>Investors</td>
+                            <td>grace@managedtbi.com</td>
+                            <td><span class="badge-status active"><span class="dot-sm"></span> Active</span></td>
+                            <td><button class="btn btn-sm btn-outline edit-staff-btn" type="button">Edit</button></td>
+                        </tr>
+                        <tr data-name="David Kimani" data-role="lead" data-department="operations" data-email="david@managedtbi.com" data-status="active">
+                            <td class="fw-600">David Kimani</td>
+                            <td>Operations Lead</td>
+                            <td>Operations</td>
+                            <td>david@managedtbi.com</td>
+                            <td><span class="badge-status active"><span class="dot-sm"></span> Active</span></td>
+                            <td><button class="btn btn-sm btn-outline edit-staff-btn" type="button">Edit</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="staffModal" style="display:none; position:fixed; inset:0; background:rgba(12,22,44,0.6); z-index:1000; align-items:center; justify-content:center;">
+    <div style="width:min(520px,90vw); background:#fff; border-radius:16px; padding:24px; box-shadow:0 18px 48px rgba(0,0,0,0.18);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+            <h3 id="staffModalTitle" style="margin:0; color:#0b1c2c;">Add Staff</h3>
+            <button type="button" class="btn btn-outline" id="closeStaffModal" aria-label="Close modal">Close</button>
+        </div>
+        <form id="staffForm">
+            <div style="display:grid; gap:14px;">
+                <div>
+                    <label for="staffName" style="display:block; margin-bottom:4px; font-weight:600;">Full name</label>
+                    <input id="staffName" type="text" required placeholder="Enter full name" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                </div>
+                <div>
+                    <label for="staffRole" style="display:block; margin-bottom:4px; font-weight:600;">Role</label>
+                    <select id="staffRole" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                        <option value="admin">Admin</option>
+                        <option value="manager">Manager</option>
+                        <option value="coordinator">Coordinator</option>
+                        <option value="analyst">Analyst</option>
+                        <option value="lead">Lead</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="staffDepartment" style="display:block; margin-bottom:4px; font-weight:600;">Department</label>
+                    <input id="staffDepartment" type="text" placeholder="e.g. Startups" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                </div>
+                <div>
+                    <label for="staffEmail" style="display:block; margin-bottom:4px; font-weight:600;">Email</label>
+                    <input id="staffEmail" type="email" required placeholder="name@example.com" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                </div>
+                <div>
+                    <label for="staffStatus" style="display:block; margin-bottom:4px; font-weight:600;">Status</label>
+                    <select id="staffStatus" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn btn-outline" id="cancelStaffBtn">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Staff</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

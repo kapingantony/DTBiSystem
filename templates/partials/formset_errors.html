@@ -1,0 +1,11 @@
+{% comment %}
+Renders errors that belong to the formset as a whole (e.g. minimum row count).
+Usage: {% include "partials/formset_errors.html" with fs=founder_formset %}
+{% endcomment %}
+{% if fs.non_form_errors %}
+<ul class="error-list">
+    {% for error in fs.non_form_errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+</ul>
+{% endif %}

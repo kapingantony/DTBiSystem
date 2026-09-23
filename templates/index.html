@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — ManagedTBI{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Welcome Banner -->
+<div class="welcome-banner">
+    <h2>Welcome back, <span class="gold-text">{{ user.get_full_name|default:user.username }}</span></h2>
+    <p>
+        {% if my_startup %}
+        Your startup <strong>{{ my_startup.name }}</strong> is listed on the platform — keep its profile up to date.
+        {% else %}
+        Add your startup to the hub so mentors, investors and partners can discover you.
+        {% endif %}
+    </p>
+    <div style="display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;">
+        {% if my_startup %}
+        <a href="{% url 'staff:startup_profile' slug=my_startup.slug %}" class="btn btn-gold"><i class="fas fa-building"></i> View My Startup</a>
+        {% else %}
+        <a href="{% url 'staff:startup_create' %}" class="btn btn-gold"><i class="fas fa-plus"></i> Add My Startup</a>
+        {% endif %}
+        <a href="{% url 'staff:startups' %}" class="btn btn-outline"><i class="fas fa-rocket"></i> Browse Startups</a>
+    </div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card blue">
+        <div class="stat-header">
+            <div class="stat-icon blue"><i class="fas fa-rocket"></i></div>
+            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 12%</span>
+        </div>
+        <div class="stat-value">24</div>
+        <div class="stat-label">Startups in the Hub</div>
+    </div>
+    <div class="stat-card gold">
+        <div class="stat-header">
+            <div class="stat-icon gold"><i class="fas fa-chalkboard-teacher"></i></div>
+            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 3</span>
+        </div>
+        <div class="stat-value">12</div>
+        <div class="stat-label">Mentors Helping Out</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="stat-header">
+            <div class="stat-icon blue"><i class="fas fa-chart-line"></i></div>
+            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 2</span>
+        </div>
+        <div class="stat-value">8</div>
+        <div class="stat-label">Investors Onboard</div>
+    </div>
+    <div class="stat-card gold">
+        <div class="stat-header">
+            <div class="stat-icon gold"><i class="fas fa-handshake"></i></div>
+            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 18%</span>
+        </div>
+        <div class="stat-value">47</div>
+        <div class="stat-label">Sessions This Month</div>
+    </div>
+</div>
+
+<!-- Two-column layout -->
+<div class="grid-2">
+    <!-- Recent Startups -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Startups</h3>
+            <a href="{% url 'staff:startups' %}" class="btn btn-sm btn-outline">View All</a>
+        </div>
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Industry</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in startups %}
+                        <tr>
+                            <td class="fw-600">
+                                <a href="{% url 'staff:startup_profile' slug=s.slug %}" style="color: inherit;">{{ s.name }}</a>
+                                {% if s.year_incubated %}<div style="font-size: 0.72rem; color: var(--gray-400); font-weight: 500;">Incubated {{ s.year_incubated }}</div>{% endif %}
+                            </td>
+                            <td>{{ s.industry|default:"—" }}</td>
+                            <td><span class="badge-status {{ s.status }}"><span class="dot-sm"></span> {{ s.get_status_display }}</span></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; padding: 24px; color: var(--gray-500);">
+                                No startups yet —
+                                <a href="{% url 'staff:startup_create' %}" style="color: var(--navy-600); font-weight: 600;">add yours</a>.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Sessions -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Upcoming Mentor Sessions</h3>
+            <button class="btn btn-sm btn-gold"><i class="fas fa-plus"></i> New</button>
+        </div>
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mentor</th>
+                            <th>Startup</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="fw-600">Dr. Amina Hassan</td>
+                            <td>AgriTech Solutions</td>
+                            <td>Sep 17, 2026</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">James Okonkwo</td>
+                            <td>FinPay Africa</td>
+                            <td>Sep 18, 2026</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">Fatima Al-Rashid</td>
+                            <td>HealthConnect</td>
+                            <td>Sep 19, 2026</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">Peter Mwangi</td>
+                            <td>EduLearn Platform</td>
+                            <td>Sep 20, 2026</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

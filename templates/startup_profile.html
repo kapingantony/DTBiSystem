@@ -1,0 +1,752 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if creating %}Add Your Startup{% else %}{{ startup.name|default:"Startup" }}{% endif %} — ManagedTBI{% endblock %}
+{% block page_title %}{% if creating %}Add Your Startup{% else %}{{ startup.name|default:"Startup" }}{% endif %}{% endblock %}
+
+{% block content %}
+<style>
+    .profile-top { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 28px; flex-wrap: wrap; }
+    .profile-avatar { width: 72px; height: 72px; border-radius: var(--radius); background: var(--navy-100); color: var(--navy-700); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.6rem; flex-shrink: 0; }
+    .profile-info { flex: 1; min-width: 200px; }
+    .profile-info h2 { font-size: 1.4rem; font-weight: 800; color: var(--gray-900); margin-bottom: 4px; }
+    .profile-info .meta { font-size: 0.85rem; color: var(--gray-500); display: flex; gap: 16px; flex-wrap: wrap; }
+    .profile-info .meta span { display: inline-flex; align-items: center; gap: 5px; }
+
+    /* Progress bar */
+    .progress-bar { background: var(--gray-100); border-radius: 99px; height: 8px; overflow: hidden; margin-top: 12px; }
+    .progress-fill { height: 100%; border-radius: 99px; background: var(--navy-600); transition: width 0.4s ease; }
+    .progress-label { font-size: 0.75rem; color: var(--gray-500); margin-top: 4px; font-weight: 600; }
+
+    /* Tabs */
+    .profile-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 24px; overflow-x: auto; flex-wrap: nowrap; }
+    .profile-tab { padding: 10px 18px; font-size: 0.82rem; font-weight: 600; color: var(--gray-500); background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: var(--transition); }
+    .profile-tab:hover { color: var(--gray-700); }
+    .profile-tab.active { color: var(--navy-600); border-bottom-color: var(--gold-500); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Info grid */
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .info-item { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 16px; }
+    .info-item .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-400); font-weight: 600; margin-bottom: 4px; }
+    .info-item .value { font-size: 0.95rem; font-weight: 600; color: var(--gray-800); }
+
+    /* Status badges */
+    .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
+    .status-pill.active { background: var(--navy-50); color: var(--navy-600); }
+    .status-pill.pending { background: var(--gold-50); color: var(--gold-600); }
+    .status-pill.inactive { background: var(--gray-100); color: var(--gray-500); }
+    .status-pill.draft { background: var(--gray-100); color: var(--gray-500); }
+    .status-pill.expired { background: #FEF2F2; color: #DC2626; }
+    .status-pill.terminated { background: #FEF2F2; color: #DC2626; }
+
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .kpi-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 16px; }
+    .kpi-card .kpi-name { font-size: 0.8rem; color: var(--gray-500); font-weight: 600; margin-bottom: 6px; }
+    .kpi-card .kpi-value { font-size: 1.4rem; font-weight: 800; color: var(--navy-700); }
+    .kpi-card .kpi-target { font-size: 0.75rem; color: var(--gray-400); margin-top: 2px; }
+    .kpi-card .kpi-achievement { font-size: 0.72rem; font-weight: 600; margin-top: 6px; padding: 2px 8px; border-radius: 99px; display: inline-block; }
+    .kpi-card .kpi-achievement.on-track { background: var(--navy-50); color: var(--navy-600); }
+    .kpi-card .kpi-achievement.behind { background: #FEF2F2; color: #DC2626; }
+
+    /* Founder cards */
+    .founder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .founder-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 18px; display: flex; gap: 14px; align-items: flex-start; }
+    .founder-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--gold-100); color: var(--gold-600); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+    .founder-info .name { font-weight: 700; font-size: 0.95rem; color: var(--gray-900); }
+    .founder-info .role-tag { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--navy-50); color: var(--navy-600); display: inline-block; margin-top: 2px; }
+    .founder-info .bio { font-size: 0.8rem; color: var(--gray-500); margin-top: 6px; }
+
+    /* Opportunity cards */
+    .opp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .opp-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 18px; }
+    .opp-card .opp-title { font-weight: 700; font-size: 0.95rem; color: var(--gray-900); margin-bottom: 4px; }
+    .opp-card .opp-type { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--gold-50); color: var(--gold-600); display: inline-block; margin-bottom: 8px; }
+    .opp-card .opp-desc { font-size: 0.8rem; color: var(--gray-500); }
+
+    /* Funding table */
+    .funding-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .funding-stat { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 16px; }
+    .funding-stat .stat-val { font-size: 1.5rem; font-weight: 800; color: var(--navy-700); }
+    .funding-stat .stat-lbl { font-size: 0.75rem; color: var(--gray-500); font-weight: 500; margin-top: 2px; }
+
+    /* Services */
+    .service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .service-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 16px; }
+    .service-card .svc-name { font-weight: 700; font-size: 0.95rem; color: var(--gray-900); margin-bottom: 4px; }
+    .service-card .svc-cat { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--navy-50); color: var(--navy-600); display: inline-block; margin-bottom: 8px; }
+    .service-card .svc-desc { font-size: 0.8rem; color: var(--gray-500); }
+
+    /* Edit form styles */
+    .form-section { margin-bottom: 24px; }
+    .form-section-title { font-size: 1rem; font-weight: 700; color: var(--gray-900); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--gray-200); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; color: var(--gray-800); background: var(--white); transition: var(--transition); }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--navy-500); box-shadow: 0 0 0 3px var(--navy-100); }
+    .form-textarea { resize: vertical; min-height: 60px; }
+
+    .formset-row { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 10px; position: relative; }
+    .formset-row .remove-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--gray-400); cursor: pointer; font-size: 0.8rem; }
+    .formset-row .remove-btn:hover { color: #DC2626; }
+    .add-formset-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px dashed var(--gray-300); border-radius: var(--radius-sm); background: none; color: var(--gray-500); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: var(--transition); margin-top: 8px; }
+    .add-formset-btn:hover { border-color: var(--navy-500); color: var(--navy-600); }
+
+    .save-bar { display: flex; gap: 10px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--gray-200); margin-top: 20px; }
+
+    /* Messages */
+    .alert { padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: 0.85rem; font-weight: 500; }
+    .alert-success { background: var(--navy-50); color: var(--navy-700); border: 1px solid var(--navy-100); }
+    .alert-error { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+
+    .error-list { margin: 0 0 12px; padding: 10px 14px 10px 30px; background: #FEF2F2; border: 1px solid #FECACA; color: #DC2626; border-radius: var(--radius-sm); font-size: 0.8rem; }
+    .error-list li { margin-bottom: 2px; }
+
+    @media (max-width: 768px) {
+        .form-row { grid-template-columns: 1fr; }
+        .profile-top { flex-direction: column; align-items: center; text-align: center; }
+        .profile-info .meta { justify-content: center; }
+    }
+</style>
+
+{% if messages %}
+{% for msg in messages %}
+<div class="alert {% if msg.tags == 'success' %}alert-success{% else %}alert-error{% endif %}">{{ msg }}</div>
+{% endfor %}
+{% endif %}
+
+<!-- Profile Header -->
+{% if creating %}
+<div class="profile-top">
+    <div class="profile-avatar"><i class="fas fa-plus"></i></div>
+    <div class="profile-info">
+        <h2>Add Your Startup</h2>
+        <div class="meta">
+            <span>Fill in your startup details below. You can add founders, funding, KPIs and pitch decks as you go.</span>
+        </div>
+    </div>
+    <div style="display: flex; gap: 8px; flex-shrink: 0;">
+        <a href="{% url 'staff:startups' %}" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
+    </div>
+</div>
+{% else %}
+<div class="profile-top">
+    <div class="profile-avatar">{{ startup.name|truncatechars:2|upper|default:"S" }}</div>
+    <div class="profile-info">
+        <h2>{{ startup.name|default:"New Startup" }}</h2>
+        <div class="meta">
+            <span><i class="fas fa-industry"></i> {{ startup.industry|default:"Not set" }}</span>
+            <span><span class="status-pill {{ startup.startup_type }}">{{ startup.get_startup_type_display }}</span></span>
+            <span><span class="status-pill {{ startup.status }}">{{ startup.get_status_display }}</span></span>
+            {% if startup.year_incubated %}
+            <span><i class="fas fa-calendar"></i> Incubated {{ startup.year_incubated }}</span>
+            {% endif %}
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: {{ startup.profile_completion }}%"></div></div>
+        <div class="progress-label">Profile {{ startup.profile_completion }}% complete</div>
+    </div>
+    <div style="display: flex; gap: 8px; flex-shrink: 0;">
+        <a href="{% url 'staff:startups' %}" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
+        {% if can_edit %}
+        <a href="#edit" class="btn btn-gold btn-sm" onclick="document.querySelector('[data-tab=edit]').click(); return false;"><i class="fas fa-pen"></i> Edit</a>
+        {% else %}
+        <a href="{% url 'staff:partnership_form' %}" class="btn btn-gold btn-sm"><i class="fas fa-handshake"></i> Partner</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<div class="profile-tabs">
+    {% if creating %}
+    <button class="profile-tab active" data-tab="edit">Your Details</button>
+    {% else %}
+    <button class="profile-tab active" data-tab="overview">Overview</button>
+    <button class="profile-tab" data-tab="founders">Founders</button>
+    <button class="profile-tab" data-tab="opportunities">Opportunities</button>
+    <button class="profile-tab" data-tab="incubation">Incubation</button>
+    <button class="profile-tab" data-tab="contract">Contract</button>
+    <button class="profile-tab" data-tab="funding">Funding</button>
+    <button class="profile-tab" data-tab="kpis">KPIs</button>
+    <button class="profile-tab" data-tab="pitch">Pitch Deck</button>
+    <button class="profile-tab" data-tab="services">Services</button>
+    {% if can_edit %}
+    <button class="profile-tab" data-tab="edit">Edit Profile</button>
+    {% endif %}
+    {% endif %}
+</div>
+
+{% if not creating %}
+<!-- Overview Tab -->
+<div class="tab-panel active" id="tab-overview">
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="label">Type</div>
+            <div class="value">{{ startup.get_startup_type_display }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Industry</div>
+            <div class="value">{{ startup.industry|default:"—" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Website</div>
+            <div class="value">{% if startup.website %}<a href="{{ startup.website }}" target="_blank" style="color: var(--navy-600);">{{ startup.website }}</a>{% else %}—{% endif %}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Founded</div>
+            <div class="value">{{ startup.founded_date|date:"M d, Y"|default:"—" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Contract Status</div>
+            <div class="value"><span class="status-pill {{ startup.contract_status }}">{{ startup.get_contract_status_display }}</span></div>
+        </div>
+        <div class="info-item">
+            <div class="label">Status</div>
+            <div class="value"><span class="status-pill {{ startup.status }}">{{ startup.get_status_display }}</span></div>
+        </div>
+    </div>
+    {% if startup.description %}
+    <div class="card" style="margin-top: 4px;">
+        <div class="card-header"><h3 class="card-title">About</h3></div>
+        <div class="card-body"><p style="font-size: 0.9rem; color: var(--gray-600);">{{ startup.description }}</p></div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Founders Tab -->
+<div class="tab-panel" id="tab-founders">
+    {% if startup.founders.exists %}
+    <div class="founder-grid">
+        {% for f in startup.founders.all %}
+        <div class="founder-card">
+            <div class="founder-avatar">{{ f.name|truncatechars:2|upper }}</div>
+            <div class="founder-info">
+                <div class="name">{{ f.name }}</div>
+                <span class="role-tag">{{ f.get_role_display }}</span>
+                {% if f.bio %}<div class="bio">{{ f.bio }}</div>{% endif %}
+                {% if f.email %}<div style="font-size:0.78rem; color:var(--gray-500); margin-top:4px;"><i class="fas fa-envelope" style="width:14px;"></i> {{ f.email }}</div>{% endif %}
+                {% if f.linkedin or f.twitter %}
+                <div style="display:flex; gap:10px; margin-top:6px;">
+                    {% if f.linkedin %}<a href="{{ f.linkedin }}" target="_blank" style="font-size:0.75rem; color:var(--navy-600);"><i class="fab fa-linkedin"></i></a>{% endif %}
+                    {% if f.twitter %}<a href="{{ f.twitter }}" target="_blank" style="font-size:0.75rem; color:var(--navy-600);"><i class="fab fa-twitter"></i></a>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="fas fa-users"></i><h3>No founders added yet</h3><p>Go to Edit Profile to add founders and co-founders.</p></div>
+    {% endif %}
+</div>
+
+<!-- Opportunities Tab -->
+<div class="tab-panel" id="tab-opportunities">
+    {% if startup.opportunities.exists %}
+    <div class="opp-grid">
+        {% for opp in startup.opportunities.all %}
+        <div class="opp-card">
+            <span class="opp-type">{{ opp.get_opportunity_type_display }}</span>
+            <span class="status-pill {{ opp.status }}" style="float:right;">{{ opp.get_status_display }}</span>
+            <div class="opp-title">{{ opp.title }}</div>
+            {% if opp.description %}<div class="opp-desc">{{ opp.description }}</div>{% endif %}
+            {% if opp.deadline %}<div style="font-size:0.75rem; color:var(--gray-400); margin-top:8px;"><i class="fas fa-clock"></i> Deadline: {{ opp.deadline|date:"M d, Y" }}</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="fas fa-lightbulb"></i><h3>No opportunities listed</h3><p>Add opportunities from Edit Profile.</p></div>
+    {% endif %}
+</div>
+
+<!-- Incubation Tab -->
+<div class="tab-panel" id="tab-incubation">
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="label">Year Incubated</div>
+            <div class="value">{{ startup.year_incubated|default:"—" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Incubation Start</div>
+            <div class="value">{{ startup.incubation_start|date:"M d, Y"|default:"—" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Incubation End</div>
+            <div class="value">{{ startup.incubation_end|date:"M d, Y"|default:"—" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Duration</div>
+            <div class="value">
+                {% if startup.incubation_start and startup.incubation_end %}
+                    {{ startup.incubation_start|timesince:startup.incubation_end }}
+                {% else %}—{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contract Tab -->
+<div class="tab-panel" id="tab-contract">
+    <div class="info-grid">
+        <div class="info-item">
+            <div class="label">Contract Status</div>
+            <div class="value"><span class="status-pill {{ startup.contract_status }}">{{ startup.get_contract_status_display }}</span></div>
+        </div>
+        <div class="info-item">
+            <div class="label">Started</div>
+            <div class="value">{{ startup.incubation_start|date:"M d, Y"|default:"—" }}</div>
+        </div>
+        <div class="info-item">
+            <div class="label">Expires</div>
+            <div class="value">{{ startup.incubation_end|date:"M d, Y"|default:"—" }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Funding Tab -->
+<div class="tab-panel" id="tab-funding">
+    <div class="funding-summary">
+        <div class="funding-stat">
+            <div class="stat-val">${{ total_funding|floatformat:0 }}</div>
+            <div class="stat-lbl">Total Funding</div>
+        </div>
+        <div class="funding-stat">
+            <div class="stat-val">{{ startup.fundings.count }}</div>
+            <div class="stat-lbl">Funding Rounds</div>
+        </div>
+        <div class="funding-stat">
+            <div class="stat-val">{{ startup.fundings.filter.status|default_if_none:"0" }}</div>
+            <div class="stat-lbl">Active</div>
+        </div>
+    </div>
+    {% if startup.fundings.exists %}
+    <div class="card">
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Amount</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in startup.fundings.all %}
+                        <tr>
+                            <td class="fw-600">{{ f.source }}</td>
+                            <td>${{ f.amount|floatformat:0 }}</td>
+                            <td>{{ f.get_funding_type_display }}</td>
+                            <td><span class="status-pill {{ f.status }}">{{ f.get_status_display }}</span></td>
+                            <td>{{ f.date_received|date:"M d, Y"|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="fas fa-coins"></i><h3>No funding recorded</h3><p>Add funding details from Edit Profile.</p></div>
+    {% endif %}
+</div>
+
+<!-- KPI Tab -->
+<div class="tab-panel" id="tab-kpis">
+    {% if startup.kpis.exists %}
+    <div class="kpi-grid">
+        {% for kpi in startup.kpis.all %}
+        <div class="kpi-card">
+            <div class="kpi-name">{{ kpi.metric_name }}</div>
+            <div class="kpi-value">{{ kpi.metric_value }}{% if kpi.unit %} <span style="font-size:0.8rem; font-weight:500;">{{ kpi.unit }}</span>{% endif %}</div>
+            {% if kpi.target_value %}<div class="kpi-target">Target: {{ kpi.target_value }}{% if kpi.unit %} {{ kpi.unit }}{% endif %}</div>{% endif %}
+            {% if kpi.achievement_pct is not None %}
+            <span class="kpi-achievement {% if kpi.achievement_pct >= 80 %}on-track{% else %}behind{% endif %}">{{ kpi.achievement_pct }}% of target</span>
+            {% endif %}
+            <div style="font-size:0.7rem; color:var(--gray-400); margin-top:6px;">{{ kpi.get_period_display }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="fas fa-chart-bar"></i><h3>No KPIs yet</h3><p>Add customer evidence and performance metrics from Edit Profile.</p></div>
+    {% endif %}
+</div>
+
+<!-- Pitch Deck Tab -->
+<div class="tab-panel" id="tab-pitch">
+    {% if startup.pitch_decks.exists %}
+    <div class="card">
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Presented</th>
+                            <th>File</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in startup.pitch_decks.all %}
+                        <tr>
+                            <td class="fw-600">{{ p.title }}</td>
+                            <td>{{ p.description|truncatewords:15 }}</td>
+                            <td>{{ p.presentation_date|date:"M d, Y"|default:"—" }}</td>
+                            <td>{% if p.file %}<a href="{{ p.file.url }}" target="_blank" class="btn btn-sm btn-outline"><i class="fas fa-file-alt"></i> View</a>{% else %}—{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="fas fa-file-powerpoint"></i><h3>No pitch decks uploaded</h3><p>Add your product profile and pitch deck from Edit Profile.</p></div>
+    {% endif %}
+</div>
+
+<!-- Services Tab -->
+<div class="tab-panel" id="tab-services">
+    {% if startup.services.exists %}
+    <div class="service-grid">
+        {% for svc in startup.services.all %}
+        <div class="service-card">
+            <span class="svc-cat">{{ svc.get_category_display }}</span>
+            <div class="svc-name">{{ svc.name }}</div>
+            {% if svc.description %}<div class="svc-desc">{{ svc.description }}</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="fas fa-concierge-bell"></i><h3>No services listed</h3><p>Add services offered from Edit Profile.</p></div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Edit Profile Tab -->
+<div class="tab-panel{% if creating %} active{% endif %}" id="tab-edit">
+    {% if can_edit %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        {% include "partials/form_errors.html" with bound_form=form %}
+
+        <!-- Basic Info -->
+        <div class="form-section">
+            <div class="form-section-title"><i class="fas fa-building"></i> Basic Information</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.name.id_for_label }}">Startup Name</label>
+                    {{ form.name }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.startup_type.id_for_label }}">Type</label>
+                    {{ form.startup_type }}
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.description.id_for_label }}">Description</label>
+                {{ form.description }}
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.industry.id_for_label }}">Industry</label>
+                    {{ form.industry }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.website.id_for_label }}">Website</label>
+                    {{ form.website }}
+                </div>
+            </div>
+            <div class="form-row">
+                {% if show_admin_fields %}
+                <div class="form-group">
+                    <label for="{{ form.status.id_for_label }}">Status</label>
+                    {{ form.status }}
+                </div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="{{ form.contract_status.id_for_label }}">Contract Status</label>
+                    {{ form.contract_status }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.year_incubated.id_for_label }}">Year Incubated</label>
+                    {{ form.year_incubated }}
+                </div>
+            </div>
+        </div>
+
+        {% if show_admin_fields %}
+        <!-- Incubation -->
+        <div class="form-section">
+            <div class="form-section-title"><i class="fas fa-calendar-alt"></i> Incubation Data</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.founded_date.id_for_label }}">Founded Date</label>
+                    {{ form.founded_date }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.incubation_start.id_for_label }}">Incubation Start</label>
+                    {{ form.incubation_start }}
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.incubation_end.id_for_label }}">Incubation End</label>
+                    {{ form.incubation_end }}
+                </div>
+                <div class="form-group">
+                    <span>&nbsp;</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Founders -->
+        <div class="form-section formset" data-formset="founders">
+            <div class="form-section-title"><i class="fas fa-user-tie"></i> Founders & Co-Founders</div>
+            {{ founder_formset.management_form }}
+            {% include "partials/formset_errors.html" with fs=founder_formset %}
+            {% for ff in founder_formset %}
+            <div class="formset-row">
+                {% include "partials/form_errors.html" with bound_form=ff %}
+                <button type="button" class="remove-btn remove-formset" title="Remove"><i class="fas fa-times"></i></button>
+                <div class="form-row">
+                    <div class="form-group"><label>Name</label>{{ ff.name }}</div>
+                    <div class="form-group"><label>Role</label>{{ ff.role }}</div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Email</label>{{ ff.email }}</div>
+                    <div class="form-group"><label>Phone</label>{{ ff.phone }}</div>
+                </div>
+                <div class="form-group"><label>Bio</label>{{ ff.bio }}</div>
+                <div class="form-row">
+                    <div class="form-group"><label>LinkedIn</label>{{ ff.linkedin }}</div>
+                    <div class="form-group"><label>Twitter</label>{{ ff.twitter }}</div>
+                </div>
+                {% for hidden in ff.hidden_fields %}{{ hidden }}{% endfor %}
+                {% if ff.DELETE %}{{ ff.DELETE }}{% endif %}
+            </div>
+            {% endfor %}
+            <button type="button" class="add-formset-btn add-formset-row"><i class="fas fa-plus"></i> Add another founder</button>
+        </div>
+
+        <!-- Opportunities -->
+        <div class="form-section formset" data-formset="opportunities">
+            <div class="form-section-title"><i class="fas fa-lightbulb"></i> Opportunities</div>
+            {{ opportunity_formset.management_form }}
+            {% include "partials/formset_errors.html" with fs=opportunity_formset %}
+            {% for of in opportunity_formset %}
+            <div class="formset-row">
+                {% include "partials/form_errors.html" with bound_form=of %}
+                <button type="button" class="remove-btn remove-formset" title="Remove"><i class="fas fa-times"></i></button>
+                <div class="form-row">
+                    <div class="form-group"><label>Title</label>{{ of.title }}</div>
+                    <div class="form-group"><label>Type</label>{{ of.opportunity_type }}</div>
+                </div>
+                <div class="form-group"><label>Description</label>{{ of.description }}</div>
+                <div class="form-row">
+                    <div class="form-group"><label>Status</label>{{ of.status }}</div>
+                    <div class="form-group"><label>Deadline</label>{{ of.deadline }}</div>
+                </div>
+                {% for hidden in of.hidden_fields %}{{ hidden }}{% endfor %}
+                {% if of.DELETE %}{{ of.DELETE }}{% endif %}
+            </div>
+            {% endfor %}
+            <button type="button" class="add-formset-btn add-formset-row"><i class="fas fa-plus"></i> Add another opportunity</button>
+        </div>
+
+        <!-- Funding -->
+        <div class="form-section formset" data-formset="fundings">
+            <div class="form-section-title"><i class="fas fa-coins"></i> Funding & Tracking</div>
+            {{ funding_formset.management_form }}
+            {% include "partials/formset_errors.html" with fs=funding_formset %}
+            {% for fd in funding_formset %}
+            <div class="formset-row">
+                {% include "partials/form_errors.html" with bound_form=fd %}
+                <button type="button" class="remove-btn remove-formset" title="Remove"><i class="fas fa-times"></i></button>
+                <div class="form-row">
+                    <div class="form-group"><label>Source / Investor</label>{{ fd.source }}</div>
+                    <div class="form-group"><label>Amount ($)</label>{{ fd.amount }}</div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Type</label>{{ fd.funding_type }}</div>
+                    <div class="form-group"><label>Status</label>{{ fd.status }}</div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Date Received</label>{{ fd.date_received }}</div>
+                    <div class="form-group"><label>Notes</label>{{ fd.notes }}</div>
+                </div>
+                {% for hidden in fd.hidden_fields %}{{ hidden }}{% endfor %}
+                {% if fd.DELETE %}{{ fd.DELETE }}{% endif %}
+            </div>
+            {% endfor %}
+            <button type="button" class="add-formset-btn add-formset-row"><i class="fas fa-plus"></i> Add another funding round</button>
+        </div>
+
+        <!-- KPIs -->
+        <div class="form-section formset" data-formset="kpis">
+            <div class="form-section-title"><i class="fas fa-chart-line"></i> KPIs — Customer Evidence</div>
+            {{ kpi_formset.management_form }}
+            {% include "partials/formset_errors.html" with fs=kpi_formset %}
+            {% for kf in kpi_formset %}
+            <div class="formset-row">
+                {% include "partials/form_errors.html" with bound_form=kf %}
+                <button type="button" class="remove-btn remove-formset" title="Remove"><i class="fas fa-times"></i></button>
+                <div class="form-row">
+                    <div class="form-group"><label>Metric Name</label>{{ kf.metric_name }}</div>
+                    <div class="form-group"><label>Period</label>{{ kf.period }}</div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Current Value</label>{{ kf.metric_value }}</div>
+                    <div class="form-group"><label>Target Value</label>{{ kf.target_value }}</div>
+                </div>
+                <div class="form-group"><label>Unit</label>{{ kf.unit }}</div>
+                {% for hidden in kf.hidden_fields %}{{ hidden }}{% endfor %}
+                {% if kf.DELETE %}{{ kf.DELETE }}{% endif %}
+            </div>
+            {% endfor %}
+            <button type="button" class="add-formset-btn add-formset-row"><i class="fas fa-plus"></i> Add another KPI</button>
+        </div>
+
+        <!-- Pitch Decks -->
+        <div class="form-section formset" data-formset="pitches">
+            <div class="form-section-title"><i class="fas fa-file-powerpoint"></i> Pitch Deck — Product Profile</div>
+            {{ pitch_formset.management_form }}
+            {% include "partials/formset_errors.html" with fs=pitch_formset %}
+            {% for pf in pitch_formset %}
+            <div class="formset-row">
+                {% include "partials/form_errors.html" with bound_form=pf %}
+                <button type="button" class="remove-btn remove-formset" title="Remove"><i class="fas fa-times"></i></button>
+                <div class="form-row">
+                    <div class="form-group"><label>Title</label>{{ pf.title }}</div>
+                    <div class="form-group"><label>Presented On</label>{{ pf.presentation_date }}</div>
+                </div>
+                <div class="form-group"><label>Description</label>{{ pf.description }}</div>
+                <div class="form-group"><label>Upload File</label>{{ pf.file }}</div>
+                {% for hidden in pf.hidden_fields %}{{ hidden }}{% endfor %}
+                {% if pf.DELETE %}{{ pf.DELETE }}{% endif %}
+            </div>
+            {% endfor %}
+            <button type="button" class="add-formset-btn add-formset-row"><i class="fas fa-plus"></i> Add another pitch deck</button>
+        </div>
+
+        <!-- Services Offered -->
+        <div class="form-section formset" data-formset="services">
+            <div class="form-section-title"><i class="fas fa-concierge-bell"></i> Services Offered</div>
+            {{ service_formset.management_form }}
+            {% include "partials/formset_errors.html" with fs=service_formset %}
+            {% for sf in service_formset %}
+            <div class="formset-row">
+                {% include "partials/form_errors.html" with bound_form=sf %}
+                <button type="button" class="remove-btn remove-formset" title="Remove"><i class="fas fa-times"></i></button>
+                <div class="form-row">
+                    <div class="form-group"><label>Service Name</label>{{ sf.name }}</div>
+                    <div class="form-group"><label>Category</label>{{ sf.category }}</div>
+                </div>
+                <div class="form-group"><label>Description</label>{{ sf.description }}</div>
+                {% for hidden in sf.hidden_fields %}{{ hidden }}{% endfor %}
+                {% if sf.DELETE %}{{ sf.DELETE }}{% endif %}
+            </div>
+            {% endfor %}
+            <button type="button" class="add-formset-btn add-formset-row"><i class="fas fa-plus"></i> Add another service</button>
+        </div>
+
+        <div class="save-bar">
+            <a href="{% url 'staff:startups' %}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> {% if creating %}Add My Startup{% else %}Save Profile{% endif %}
+            </button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching
+    document.querySelectorAll('.profile-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.profile-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+            this.classList.add('active');
+            var panel = document.getElementById('tab-' + this.dataset.tab);
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+    // Formset remove buttons (delegated so it also works for added rows)
+    document.addEventListener('click', function(e) {
+        var removeBtn = e.target.closest('.remove-formset');
+        if (removeBtn) {
+            var row = removeBtn.closest('.formset-row');
+            var deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = true;
+                row.style.display = 'none';
+            } else {
+                row.remove();
+            }
+            return;
+        }
+
+        var addBtn = e.target.closest('.add-formset-row');
+        if (addBtn) addFormsetRow(addBtn.closest('.formset'));
+    });
+
+    // Remember each select's default option so new rows start out clean
+    document.querySelectorAll('.formset select').forEach(function(sel) {
+        sel.setAttribute('data-default-index', sel.selectedIndex);
+    });
+
+    function addFormsetRow(section) {
+        if (!section) return;
+        var rows = section.querySelectorAll('.formset-row');
+        if (!rows.length) return;
+
+        var mgmt = section.querySelector('input[name$="-TOTAL_FORMS"]');
+        var total = parseInt(mgmt.value, 10);
+        var oldIdx = total - 1;
+        var newIdx = total;
+
+        var clone = rows[rows.length - 1].cloneNode(true);
+        var pattern = new RegExp('-' + oldIdx + '-', 'g');
+
+        clone.querySelectorAll('input, select, textarea').forEach(function(el) {
+            ['name', 'id'].forEach(function(attr) {
+                if (el.hasAttribute(attr)) {
+                    el.setAttribute(attr, el.getAttribute(attr).replace(pattern, '-' + newIdx + '-'));
+                }
+            });
+
+            if (el.type === 'checkbox' || el.type === 'radio') {
+                el.checked = false;
+            } else if (el.tagName === 'SELECT') {
+                var def = el.getAttribute('data-default-index');
+                el.selectedIndex = def === null ? 0 : parseInt(def, 10);
+            } else if (el.type !== 'file') {
+                el.value = '';
+            }
+        });
+
+        // Reset anything inherited from the row we cloned
+        clone.style.display = '';
+        var oldErrors = clone.querySelector('.error-list');
+        if (oldErrors) oldErrors.remove();
+
+        mgmt.value = newIdx + 1;
+        section.insertBefore(clone, section.querySelector('.add-formset-row'));
+
+        var firstField = clone.querySelector('input:not([type=hidden]), select, textarea');
+        if (firstField) firstField.focus();
+    }
+});
+</script>
+{% endblock %}

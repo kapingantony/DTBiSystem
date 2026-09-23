@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Mentors — ManagedTBI{% endblock %}
+{% block page_title %}Mentors Panel{% endblock %}
+
+{% block content %}
+<div class="mentors-page">
+    <div class="filter-bar">
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input id="mentorSearch" type="text" placeholder="Search mentors...">
+        </div>
+        <select id="mentorSpecialization" class="filter-select">
+            <option value="all">All Specializations</option>
+            <option value="technology">Technology</option>
+            <option value="finance">Finance</option>
+            <option value="marketing">Marketing</option>
+            <option value="operations">Operations</option>
+            <option value="legal">Legal</option>
+        </select>
+        <button id="addMentorBtn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Add Mentor</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" type="button" data-filter="all">All Mentors</button>
+        <button class="tab-btn" type="button" data-filter="active">Active</button>
+        <button class="tab-btn" type="button" data-filter="available">Available</button>
+        <button class="tab-btn" type="button" data-filter="on_leave">On Leave</button>
+    </div>
+
+    <div class="person-grid" id="mentorGrid">
+        <div class="person-card" data-name="Dr. Amina Hassan" data-specialization="technology" data-status="active">
+            <div class="person-card-top">
+                <div class="person-avatar blue">AH</div>
+                <div>
+                    <div class="person-name">Dr. Amina Hassan</div>
+                    <div class="person-role">Technology &amp; Innovation</div>
+                </div>
+            </div>
+            <div class="person-details">
+                <div class="person-detail"><i class="fas fa-briefcase"></i> 15+ years experience</div>
+                <div class="person-detail"><i class="fas fa-users"></i> 6 startups mentored</div>
+                <div class="person-detail"><i class="fas fa-calendar"></i> Next session: Sep 17</div>
+            </div>
+            <div class="person-tags">
+                <span class="tag">AI/ML</span>
+                <span class="tag gold">Fintech</span>
+                <span class="tag">AgriTech</span>
+            </div>
+        </div>
+
+        <div class="person-card" data-name="James Okonkwo" data-specialization="finance" data-status="available">
+            <div class="person-card-top">
+                <div class="person-avatar gold">JO</div>
+                <div>
+                    <div class="person-name">James Okonkwo</div>
+                    <div class="person-role">Finance &amp; Investment</div>
+                </div>
+            </div>
+            <div class="person-details">
+                <div class="person-detail"><i class="fas fa-briefcase"></i> 12+ years experience</div>
+                <div class="person-detail"><i class="fas fa-users"></i> 4 startups mentored</div>
+                <div class="person-detail"><i class="fas fa-calendar"></i> Next session: Sep 18</div>
+            </div>
+            <div class="person-tags">
+                <span class="tag">Venture Capital</span>
+                <span class="tag gold">Financial Modeling</span>
+            </div>
+        </div>
+
+        <div class="person-card" data-name="Fatima Al-Rashid" data-specialization="technology" data-status="active">
+            <div class="person-card-top">
+                <div class="person-avatar blue">FR</div>
+                <div>
+                    <div class="person-name">Fatima Al-Rashid</div>
+                    <div class="person-role">Healthcare &amp; Biotech</div>
+                </div>
+            </div>
+            <div class="person-details">
+                <div class="person-detail"><i class="fas fa-briefcase"></i> 10+ years experience</div>
+                <div class="person-detail"><i class="fas fa-users"></i> 3 startups mentored</div>
+                <div class="person-detail"><i class="fas fa-calendar"></i> Next session: Sep 19</div>
+            </div>
+            <div class="person-tags">
+                <span class="tag">HealthTech</span>
+                <span class="tag gold">Regulatory</span>
+            </div>
+        </div>
+
+        <div class="person-card" data-name="Peter Mwangi" data-specialization="marketing" data-status="available">
+            <div class="person-card-top">
+                <div class="person-avatar gold">PM</div>
+                <div>
+                    <div class="person-name">Peter Mwangi</div>
+                    <div class="person-role">Marketing &amp; Growth</div>
+                </div>
+            </div>
+            <div class="person-details">
+                <div class="person-detail"><i class="fas fa-briefcase"></i> 8+ years experience</div>
+                <div class="person-detail"><i class="fas fa-users"></i> 5 startups mentored</div>
+                <div class="person-detail"><i class="fas fa-calendar"></i> Next session: Sep 20</div>
+            </div>
+            <div class="person-tags">
+                <span class="tag">Growth Hacking</span>
+                <span class="tag gold">Digital Marketing</span>
+            </div>
+        </div>
+
+        <div class="person-card" data-name="Lisa Njeri" data-specialization="legal" data-status="on_leave">
+            <div class="person-card-top">
+                <div class="person-avatar blue">LN</div>
+                <div>
+                    <div class="person-name">Lisa Njeri</div>
+                    <div class="person-role">Legal &amp; Compliance</div>
+                </div>
+            </div>
+            <div class="person-details">
+                <div class="person-detail"><i class="fas fa-briefcase"></i> 14+ years experience</div>
+                <div class="person-detail"><i class="fas fa-users"></i> 2 startups mentored</div>
+                <div class="person-detail"><i class="fas fa-calendar"></i> Next session: Sep 22</div>
+            </div>
+            <div class="person-tags">
+                <span class="tag">Corporate Law</span>
+                <span class="tag gold">IP Protection</span>
+            </div>
+        </div>
+
+        <div class="person-card" data-name="Kevin Ochieng" data-specialization="operations" data-status="available">
+            <div class="person-card-top">
+                <div class="person-avatar gold">KO</div>
+                <div>
+                    <div class="person-name">Kevin Ochieng</div>
+                    <div class="person-role">Operations &amp; Scaling</div>
+                </div>
+            </div>
+            <div class="person-details">
+                <div class="person-detail"><i class="fas fa-briefcase"></i> 11+ years experience</div>
+                <div class="person-detail"><i class="fas fa-users"></i> 7 startups mentored</div>
+                <div class="person-detail"><i class="fas fa-calendar"></i> Next session: Sep 23</div>
+            </div>
+            <div class="person-tags">
+                <span class="tag">Supply Chain</span>
+                <span class="tag gold">Lean Operations</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="mentorModal" style="display:none; position:fixed; inset:0; background:rgba(12,22,44,0.6); z-index:1000; align-items:center; justify-content:center;">
+    <div style="width:min(520px,90vw); background:#fff; border-radius:16px; padding:24px; box-shadow:0 18px 48px rgba(0,0,0,0.18);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+            <h3 style="margin:0; color:#0b1c2c;">Add Mentor</h3>
+            <button type="button" class="btn btn-outline" id="closeMentorModal" aria-label="Close modal">Close</button>
+        </div>
+        <form id="mentorForm">
+            <div style="display:grid; gap:14px;">
+                <div>
+                    <label for="mentorName" style="display:block; margin-bottom:4px; font-weight:600;">Mentor name</label>
+                    <input id="mentorName" type="text" required placeholder="Enter mentor name" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                </div>
+                <div>
+                    <label for="mentorRole" style="display:block; margin-bottom:4px; font-weight:600;">Specialization</label>
+                    <select id="mentorRole" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                        <option value="technology">Technology</option>
+                        <option value="finance">Finance</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="operations">Operations</option>
+                        <option value="legal">Legal</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="mentorStatus" style="display:block; margin-bottom:4px; font-weight:600;">Status</label>
+                    <select id="mentorStatus" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                        <option value="active">Active</option>
+                        <option value="available">Available</option>
+                        <option value="on_leave">On Leave</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="mentorSession" style="display:block; margin-bottom:4px; font-weight:600;">Next session</label>
+                    <input id="mentorSession" type="text" placeholder="e.g. Sep 25" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
+                </div>
+            </div>
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn btn-outline" id="cancelMentorBtn">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Mentor</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
