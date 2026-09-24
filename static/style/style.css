@@ -100,28 +100,28 @@ img { max-width: 100%; display: block; }
 }
 
 .sidebar-logo-pair {
-  width: 58px;
-  height: 42px;
+  width: 70px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   flex-shrink: 0;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  background: var(--white);
+  padding: 6px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffffff 0%, #edf3ff 100%);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
   overflow: hidden;
 }
 
 .sidebar-logo-pair img {
-  width: 24px;
-  height: 31px;
+  width: 52px;
+  height: 38px;
   object-fit: contain;
+  display: block;
 }
 
 .sidebar-logo-pair img + img {
-  width: 24px;
-  height: 31px;
+  display: none;
 }
 
 .sidebar-brand {
