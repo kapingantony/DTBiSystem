@@ -235,8 +235,9 @@ class ServiceOffered(models.Model):
 class UserProfile(models.Model):
     USER_TYPE_CHOICES = [
         ('admin', 'Admin'),
-        ('public', 'Public Startup'),
+        ('staff', 'Staff'),
         ('individual', 'Individual Startup'),
+        ('public', 'Public Startup'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -268,6 +269,10 @@ class UserProfile(models.Model):
     @property
     def is_admin(self):
         return self.user_type == 'admin'
+
+    @property
+    def is_staff_role(self):
+        return self.user_type in ['admin', 'staff']
 
     @property
     def is_startup(self):

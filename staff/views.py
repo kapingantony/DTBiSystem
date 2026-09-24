@@ -117,40 +117,52 @@ def startups(request):
 
 @require_http_methods(["GET", "POST"])
 def user_login(request):
-    """Handle user login with type-based authentication"""
+    """Handle login according to the account's stored role and permissions."""
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
-        user_type = request.POST.get('user_type', 'public')  # admin, public, individual
+        requested_type = request.POST.get('user_type', 'public')
+
+        valid_types = {choice[0] for choice in UserProfile.USER_TYPE_CHOICES}
+        if requested_type not in valid_types:
+            requested_type = 'public'
 
         user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            # Get or create user profile
-            profile, created = UserProfile.objects.get_or_create(user=user)
-            if created and (user.is_staff or user.is_superuser):
-                profile.user_type = 'admin'
-                profile.save(update_fields=['user_type'])
-            # Update login count
-            profile.login_count += 1
-            profile.last_login_ip = request.META.get('REMOTE_ADDR', '0.0.0.0')
-            profile.save()
-
-            # Determine user type for redirect
-            if profile.is_admin:
-                return redirect('staff:dashboard')
-            elif profile.is_startup:
-                # Redirect to startup profile or create
-                if profile.startup:
-                    return redirect('staff:startup_profile', slug=profile.startup.slug)
-                else:
-                    # Redirect to startup creation
-                    return redirect('staff:startup_create')
-            else:
-                return redirect('staff:dashboard')
-        else:
+        if user is None:
             messages.error(request, 'Invalid username or password.')
-    
+            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+
+        if requested_type == 'admin':
+            if not (user.is_superuser or (user.is_staff and profile.user_type == 'admin')):
+                messages.error(request, 'This account is not authorized for Admin access.')
+                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+        elif requested_type == 'staff':
+            if not (user.is_staff and profile.user_type == 'staff'):
+                messages.error(request, 'This account is not authorized for Staff access.')
+                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+        elif requested_type in ('public', 'individual'):
+            if profile.user_type != requested_type:
+                messages.error(request, 'This account is not registered as a startup user.')
+                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+            if user.is_staff or user.is_superuser:
+                messages.error(request, 'Startup accounts cannot sign in as admin or staff.')
+                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+
+        login(request, user)
+        profile.login_count += 1
+        profile.last_login_ip = request.META.get('REMOTE_ADDR', '0.0.0.0')
+        profile.save(update_fields=['user_type', 'login_count', 'last_login_ip'])
+
+        if profile.user_type == 'admin':
+            return redirect('staff:dashboard')
+        if profile.user_type == 'staff':
+            return redirect('staff:staff_list')
+        if profile.is_startup:
+            return redirect('staff:startup_profile', slug=profile.startup.slug) if profile.startup else redirect('staff:startup_create')
+        return redirect('staff:dashboard')
+
     user_types = UserProfile.USER_TYPE_CHOICES
     return render(request, 'registration/login.html', {'user_types': user_types})
 
@@ -229,16 +241,16 @@ def profile_view_notification(request, user_id):
 
 @require_http_methods(["GET", "POST"])
 def register(request):
-    """Handle user registration with type selection"""
+    """Handle startup-user registration only. Staff/admin accounts are created by administrators."""
     if request.method == 'POST':
         username = (request.POST.get('username') or '').strip()
         email = (request.POST.get('email') or '').strip()
-        password = request.POST.get('password')
-        user_type = request.POST.get('user_type', 'public')  # public, individual
+        password = (request.POST.get('password') or '').strip()
+        user_type = request.POST.get('user_type', 'public')
 
-        # Self-registered accounts can never claim admin rights.
         if user_type not in ('public', 'individual'):
-            user_type = 'public'
+            messages.error(request, 'Public signup is only for startup accounts. Please choose Public Startup or Individual Startup.')
+            return render(request, 'registration/register.html', {'user_types': [('public', 'Public Startup'), ('individual', 'Individual Startup')]})
 
         if not username or not password:
             messages.error(request, 'Username and password are required.')
@@ -249,21 +261,13 @@ def register(request):
                 username=username,
                 email=email,
                 password=password,
+                is_staff=False,
             )
-            # Create user profile with selected type
-            UserProfile.objects.create(
-                user=user,
-                user_type=user_type,
-            )
+            UserProfile.objects.create(user=user, user_type=user_type)
+            messages.success(request, 'Account created successfully. Please log in with your startup role.')
+            return redirect('staff:user_login')
 
-            # Log the user in
-            login(request, user)
-
-            # A startup account lands directly on the startup creation form
-            messages.success(request, 'Welcome! Add your startup to get started.')
-            return redirect('staff:startup_create')
-
-    user_types = [c for c in UserProfile.USER_TYPE_CHOICES if c[0] != 'admin']
+    user_types = [c for c in UserProfile.USER_TYPE_CHOICES if c[0] not in ('admin', 'staff')]
     return render(request, 'registration/register.html', {'user_types': user_types})
 
 
@@ -438,5 +442,10 @@ def investors(request):
     return render(request, 'investors.html')
 
 
+@login_required
 def staff_list(request):
+    profile = get_profile(request.user)
+    if profile.user_type not in ['admin', 'staff']:
+        messages.error(request, 'Only staff and admin users can view the staff directory.')
+        return redirect('staff:dashboard')
     return render(request, 'staff_list.html')

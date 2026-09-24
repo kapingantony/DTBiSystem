@@ -126,6 +126,36 @@ class StartupCreationTests(TestCase):
         profile = UserProfile.objects.get(user__username='sneaky')
         self.assertEqual(profile.user_type, 'public')
 
+    def test_self_registration_redirects_to_login_and_does_not_auto_login(self):
+        self.client.logout()
+        response = self.client.post(reverse('staff:register'), {
+            'username': 'startupuser',
+            'email': 'startup@example.com',
+            'password': 'verysecret123',
+            'user_type': 'public',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('staff:user_login'))
+        self.assertFalse('_auth_user_id' in self.client.session)
+
+    def test_staff_login_redirects_to_staff_page(self):
+        staff_user = get_user_model().objects.create_user(
+            username='staffuser',
+            password='secret1234',
+            email='staff@example.com',
+            is_staff=True,
+        )
+        UserProfile.objects.create(user=staff_user, user_type='staff')
+
+        response = self.client.post(reverse('staff:user_login'), {
+            'username': 'staffuser',
+            'password': 'secret1234',
+            'user_type': 'staff',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('staff:staff_list'))
+
     def test_register_rejects_duplicate_username(self):
         self.client.logout()
         response = self.client.post(reverse('staff:register'), {
