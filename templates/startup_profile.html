@@ -9,6 +9,7 @@
     .profile-top { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 28px; flex-wrap: wrap; }
     .profile-avatar { width: 72px; height: 72px; border-radius: var(--radius); background: var(--navy-100); color: var(--navy-700); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.6rem; flex-shrink: 0; }
     .profile-info { flex: 1; min-width: 200px; }
+    .profile-info { max-width: 760px; }
     .profile-info h2 { font-size: 1.4rem; font-weight: 800; color: var(--gray-900); margin-bottom: 4px; }
     .profile-info .meta { font-size: 0.85rem; color: var(--gray-500); display: flex; gap: 16px; flex-wrap: wrap; }
     .profile-info .meta span { display: inline-flex; align-items: center; gap: 5px; }
@@ -32,6 +33,13 @@
     .info-item { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 16px; }
     .info-item .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-400); font-weight: 600; margin-bottom: 4px; }
     .info-item .value { font-size: 0.95rem; font-weight: 600; color: var(--gray-800); }
+    .overview-more { margin-top: 18px; }
+    .overview-more summary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+    .overview-more summary::-webkit-details-marker { display: none; }
+    .overview-more summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 0.7rem; }
+    .overview-more[open] summary::after { content: '\f077'; }
+    .overview-more .more-content { margin-top: 14px; }
+    .overview-description { color: var(--gray-600); font-size: 0.9rem; line-height: 1.65; white-space: pre-line; }
 
     /* Status badges */
     .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
@@ -209,12 +217,23 @@
             <div class="value"><span class="status-pill {{ startup.status }}">{{ startup.get_status_display }}</span></div>
         </div>
     </div>
-    {% if startup.description %}
-    <div class="card" style="margin-top: 4px;">
-        <div class="card-header"><h3 class="card-title">About</h3></div>
-        <div class="card-body"><p style="font-size: 0.9rem; color: var(--gray-600);">{{ startup.description }}</p></div>
-    </div>
-    {% endif %}
+    <details class="overview-more">
+        <summary class="btn btn-outline btn-sm">More details</summary>
+        <div class="more-content">
+            <div class="info-grid">
+                <div class="info-item"><div class="label">Contact email</div><div class="value">{{ startup.contact_email|default:"—" }}</div></div>
+                <div class="info-item"><div class="label">Phone</div><div class="value">{{ startup.phone|default:"—" }}</div></div>
+                <div class="info-item"><div class="label">Year incubated</div><div class="value">{{ startup.year_incubated|default:"—" }}</div></div>
+                <div class="info-item"><div class="label">Source</div><div class="value">{{ startup.source|default:"—" }}</div></div>
+            </div>
+            {% if startup.description %}
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">About</h3></div>
+                <div class="card-body"><p class="overview-description">{{ startup.description }}</p></div>
+            </div>
+            {% endif %}
+        </div>
+    </details>
 </div>
 
 <!-- Founders Tab -->

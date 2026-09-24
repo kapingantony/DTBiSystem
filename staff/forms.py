@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from .models import (
     Startup, Founder, Opportunity, Funding,
-    KPI, PitchDeck, ServiceOffered, Partnership, UserProfile
+    KPI, PitchDeck, ServiceOffered, Partnership, UserProfile, Mentor, Investor
 )
 
 
@@ -36,6 +36,7 @@ class StartupForm(forms.ModelForm):
         model = Startup
         fields = [
             'name', 'startup_type', 'description', 'industry', 'website',
+            'contact_email', 'phone', 'source',
             'logo', 'cover_image', 'founded_date', 'incubation_start',
             'incubation_end', 'year_incubated', 'contract_status', 'status',
         ]
@@ -45,6 +46,9 @@ class StartupForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-textarea', 'rows': 3, 'placeholder': 'Brief description of the startup...'}),
             'industry': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'e.g. Fintech, AgriTech'}),
             'website': forms.URLInput(attrs={'class': 'form-input', 'placeholder': 'https://...'}),
+            'contact_email': forms.EmailInput(attrs={'class': 'form-input', 'placeholder': 'startup@example.com'}),
+            'phone': forms.TextInput(attrs={'class': 'form-input', 'placeholder': '+255...'}),
+            'source': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'BUNI workbook'}),
             'founded_date': forms.DateInput(attrs={'class': 'form-input', 'type': 'date'}),
             'incubation_start': forms.DateInput(attrs={'class': 'form-input', 'type': 'date'}),
             'incubation_end': forms.DateInput(attrs={'class': 'form-input', 'type': 'date'}),
@@ -64,6 +68,7 @@ class StartupOwnerForm(StartupForm):
     class Meta(StartupForm.Meta):
         fields = [
             'name', 'startup_type', 'description', 'industry', 'website',
+            'contact_email', 'phone',
             'logo', 'cover_image', 'founded_date', 'year_incubated',
             'contract_status',
         ]
@@ -82,6 +87,18 @@ class FounderForm(forms.ModelForm):
             'linkedin': forms.URLInput(attrs={'class': 'form-input', 'placeholder': 'LinkedIn URL'}),
             'twitter': forms.URLInput(attrs={'class': 'form-input', 'placeholder': 'Twitter URL'}),
         }
+
+
+class MentorForm(forms.ModelForm):
+    class Meta:
+        model = Mentor
+        fields = ['name', 'email', 'gender', 'education_level', 'phone', 'role', 'skills', 'training_topics', 'is_active']
+
+
+class InvestorForm(forms.ModelForm):
+    class Meta:
+        model = Investor
+        fields = ['name', 'organization', 'email', 'phone', 'website', 'description', 'investment_interest', 'status']
 
 
 FounderFormSet = forms.inlineformset_factory(

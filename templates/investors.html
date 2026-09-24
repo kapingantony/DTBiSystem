@@ -1,229 +1,26 @@
 {% extends "base.html" %}
 
-{% block title %}Investors — DTBi | BUNI Innovation Management System{% endblock %}
-{% block page_title %}Investors Panel{% endblock %}
+{% block title %}Investors - DTBi | BUNI Innovation Management System{% endblock %}
+{% block page_title %}Investors{% endblock %}
 
 {% block content %}
 <div class="investors-page">
-    {% if not user.is_staff %}<div class="read-only-notice"><i class="fas fa-eye"></i><span>Investor overview</span><small>Sign in as staff to manage investor records.</small><a href="{% url 'staff:user_login' %}">Sign in</a></div>{% endif %}
     <div class="filter-bar">
-        <div class="search-box">
-            <i class="fas fa-search"></i>
-            <input id="investorSearch" type="text" placeholder="Search investors...">
-        </div>
-        <select id="investorType" class="filter-select">
-            <option value="all">All Types</option>
-            <option value="angel">Angel Investor</option>
-            <option value="venture">Venture Capital</option>
-            <option value="corporate">Corporate</option>
-            <option value="impact">Impact Fund</option>
-        </select>
-        <select id="investorInterest" class="filter-select">
-            <option value="all">All Interests</option>
-            <option value="fintech">Fintech</option>
-            <option value="healthtech">HealthTech</option>
-            <option value="agritech">AgriTech</option>
-            <option value="edtech">EdTech</option>
-        </select>
-        {% if user.is_authenticated and user.is_staff %}
-        <button id="addInvestorBtn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Add Investor</button>
-        {% endif %}
+        <div><strong>{{ investors|length }}</strong> active investors in the system</div>
+        {% if user.profile.is_admin %}<a class="btn btn-primary" href="{% url 'admin:staff_investor_add' %}"><i class="fas fa-plus"></i> Add Investor</a>{% endif %}
     </div>
-
-    <div class="stats-grid">
-        <div class="stat-card blue">
-            <div class="stat-header">
-                <div class="stat-icon blue"><i class="fas fa-coins"></i></div>
-            </div>
-            <div class="stat-value">$3.2M</div>
-            <div class="stat-label">Total Committed Capital</div>
-        </div>
-        <div class="stat-card gold">
-            <div class="stat-header">
-                <div class="stat-icon gold"><i class="fas fa-handshake"></i></div>
-            </div>
-            <div class="stat-value">15</div>
-            <div class="stat-label">Deals Closed</div>
-        </div>
-        <div class="stat-card blue">
-            <div class="stat-header">
-                <div class="stat-icon blue"><i class="fas fa-chart-bar"></i></div>
-            </div>
-            <div class="stat-value">6</div>
-            <div class="stat-label">Active Deals in Pipeline</div>
-        </div>
-    </div>
-
-    <div class="tabs">
-        <button class="tab-btn active" type="button" data-filter="all">All Investors</button>
-        <button class="tab-btn" type="button" data-filter="active">Active</button>
-        <button class="tab-btn" type="button" data-filter="prospective">Prospective</button>
-        <button class="tab-btn" type="button" data-filter="past">Past</button>
-    </div>
-
-    <div class="person-grid" id="investorGrid">
-        <div class="person-card" data-name="Safaricom Ventures" data-type="corporate" data-interest="fintech" data-status="active">
-            <div class="person-card-top">
-                <div class="person-avatar gold">SA</div>
-                <div>
-                    <div class="person-name">Safaricom Ventures</div>
-                    <div class="person-role">Corporate Investor</div>
-                </div>
-            </div>
+    <div class="person-grid">
+        {% for investor in investors %}
+        <article class="person-card">
+            <div class="person-card-top"><div class="person-avatar gold">{{ investor.name|slice:":2"|upper }}</div><div><div class="person-name">{{ investor }}</div><div class="person-role">{{ investor.organization|default:"Investor" }}</div></div></div>
             <div class="person-details">
-                <div class="person-detail"><i class="fas fa-map-marker-alt"></i> Nairobi, Kenya</div>
-                <div class="person-detail"><i class="fas fa-coins"></i> $500K committed</div>
-                <div class="person-detail"><i class="fas fa-handshake"></i> 4 deals closed</div>
+                {% if investor.email %}<div class="person-detail"><i class="fas fa-envelope"></i> {{ investor.email }}</div>{% endif %}
+                {% if investor.phone %}<div class="person-detail"><i class="fas fa-phone"></i> {{ investor.phone }}</div>{% endif %}
+                {% if investor.investment_interest %}<div class="person-detail"><i class="fas fa-bullseye"></i> {{ investor.investment_interest }}</div>{% endif %}
             </div>
-            <div class="person-tags">
-                <span class="tag">Fintech</span>
-                <span class="tag gold">AgriTech</span>
-            </div>
-        </div>
-
-        <div class="person-card" data-name="TechAfrica Capital" data-type="venture" data-interest="healthtech" data-status="active">
-            <div class="person-card-top">
-                <div class="person-avatar blue">TA</div>
-                <div>
-                    <div class="person-name">TechAfrica Capital</div>
-                    <div class="person-role">Venture Capital</div>
-                </div>
-            </div>
-            <div class="person-details">
-                <div class="person-detail"><i class="fas fa-map-marker-alt"></i> Lagos, Nigeria</div>
-                <div class="person-detail"><i class="fas fa-coins"></i> $1.2M committed</div>
-                <div class="person-detail"><i class="fas fa-handshake"></i> 6 deals closed</div>
-            </div>
-            <div class="person-tags">
-                <span class="tag">HealthTech</span>
-                <span class="tag gold">EdTech</span>
-            </div>
-        </div>
-
-        <div class="person-card" data-name="Hassan Ibrahim" data-type="angel" data-interest="fintech" data-status="prospective">
-            <div class="person-card-top">
-                <div class="person-avatar gold">HI</div>
-                <div>
-                    <div class="person-name">Hassan Ibrahim</div>
-                    <div class="person-role">Angel Investor</div>
-                </div>
-            </div>
-            <div class="person-details">
-                <div class="person-detail"><i class="fas fa-map-marker-alt"></i> Dubai, UAE</div>
-                <div class="person-detail"><i class="fas fa-coins"></i> $150K committed</div>
-                <div class="person-detail"><i class="fas fa-handshake"></i> 2 deals closed</div>
-            </div>
-            <div class="person-tags">
-                <span class="tag">Fintech</span>
-                <span class="tag gold">CleanTech</span>
-            </div>
-        </div>
-
-        <div class="person-card" data-name="East Africa Fund" data-type="impact" data-interest="agritech" data-status="past">
-            <div class="person-card-top">
-                <div class="person-avatar blue">EF</div>
-                <div>
-                    <div class="person-name">East Africa Fund</div>
-                    <div class="person-role">Impact Fund</div>
-                </div>
-            </div>
-            <div class="person-details">
-                <div class="person-detail"><i class="fas fa-map-marker-alt"></i> Dar es Salaam, TZ</div>
-                <div class="person-detail"><i class="fas fa-coins"></i> $800K committed</div>
-                <div class="person-detail"><i class="fas fa-handshake"></i> 3 deals closed</div>
-            </div>
-            <div class="person-tags">
-                <span class="tag">AgriTech</span>
-                <span class="tag gold">Social Impact</span>
-            </div>
-        </div>
-
-        <div class="person-card" data-name="Nadia Khoury" data-type="angel" data-interest="edtech" data-status="active">
-            <div class="person-card-top">
-                <div class="person-avatar gold">NK</div>
-                <div>
-                    <div class="person-name">Nadia Khoury</div>
-                    <div class="person-role">Angel Investor</div>
-                </div>
-            </div>
-            <div class="person-details">
-                <div class="person-detail"><i class="fas fa-map-marker-alt"></i> Cairo, Egypt</div>
-                <div class="person-detail"><i class="fas fa-coins"></i> $200K committed</div>
-                <div class="person-detail"><i class="fas fa-handshake"></i> 3 deals closed</div>
-            </div>
-            <div class="person-tags">
-                <span class="tag">EdTech</span>
-                <span class="tag gold">HealthTech</span>
-            </div>
-        </div>
-
-        <div class="person-card" data-name="Vuma Partners" data-type="venture" data-interest="fintech" data-status="prospective">
-            <div class="person-card-top">
-                <div class="person-avatar blue">VP</div>
-                <div>
-                    <div class="person-name">Vuma Partners</div>
-                    <div class="person-role">Venture Capital</div>
-                </div>
-            </div>
-            <div class="person-details">
-                <div class="person-detail"><i class="fas fa-map-marker-alt"></i> Johannesburg, ZA</div>
-                <div class="person-detail"><i class="fas fa-coins"></i> $350K committed</div>
-                <div class="person-detail"><i class="fas fa-handshake"></i> 2 deals closed</div>
-            </div>
-            <div class="person-tags">
-                <span class="tag">Logistics</span>
-                <span class="tag gold">AI/ML</span>
-            </div>
-        </div>
+            {% if investor.description %}<div class="person-tags"><span class="tag">{{ investor.description|truncatechars:100 }}</span></div>{% endif %}
+        </article>
+        {% empty %}<p class="overview-empty">No investor records have been added yet.</p>{% endfor %}
     </div>
 </div>
-
-{% if user.is_authenticated and user.is_staff %}
-<div id="investorModal" style="display:none; position:fixed; inset:0; background:rgba(12,22,44,0.6); z-index:1000; align-items:center; justify-content:center;">
-    <div style="width:min(520px,90vw); background:#fff; border-radius:16px; padding:24px; box-shadow:0 18px 48px rgba(0,0,0,0.18);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
-            <h3 style="margin:0; color:#0b1c2c;">Add Investor</h3>
-            <button type="button" class="btn btn-outline" id="closeInvestorModal" aria-label="Close modal">Close</button>
-        </div>
-        <form id="investorForm">
-            <div style="display:grid; gap:14px;">
-                <div>
-                    <label for="investorName" style="display:block; margin-bottom:4px; font-weight:600;">Investor name</label>
-                    <input id="investorName" type="text" required placeholder="Enter investor name" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
-                </div>
-                <div>
-                    <label for="investorTypeSelect" style="display:block; margin-bottom:4px; font-weight:600;">Type</label>
-                    <select id="investorTypeSelect" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
-                        <option value="angel">Angel Investor</option>
-                        <option value="venture">Venture Capital</option>
-                        <option value="corporate">Corporate</option>
-                        <option value="impact">Impact Fund</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="investorInterestSelect" style="display:block; margin-bottom:4px; font-weight:600;">Interest</label>
-                    <select id="investorInterestSelect" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
-                        <option value="fintech">Fintech</option>
-                        <option value="healthtech">HealthTech</option>
-                        <option value="agritech">AgriTech</option>
-                        <option value="edtech">EdTech</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="investorStatusSelect" style="display:block; margin-bottom:4px; font-weight:600;">Status</label>
-                    <select id="investorStatusSelect" style="width:100%; padding:10px 12px; border:1px solid #d5dbe5; border-radius:10px;">
-                        <option value="active">Active</option>
-                        <option value="prospective">Prospective</option>
-                        <option value="past">Past</option>
-                    </select>
-                </div>
-            </div>
-            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
-                <button type="button" class="btn btn-outline" id="cancelInvestorBtn">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Investor</button>
-            </div>
-        </form>
-    </div>
-</div>
-{% endif %}
 {% endblock %}

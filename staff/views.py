@@ -11,7 +11,8 @@ from django.http import JsonResponse
 from .models import (
     Startup, Founder, Opportunity, Funding,
     KPI, PitchDeck, ServiceOffered, Partnership,
-    UserProfile, RegistrationRate, ProfileView, LoginNotification, SiteVisit
+    UserProfile, RegistrationRate, ProfileView, LoginNotification, SiteVisit,
+    Mentor, Investor
 )
 from .forms import (
     StartupForm, StartupOwnerForm, FounderFormSet, OpportunityFormSet,
@@ -73,6 +74,8 @@ def landing(request):
 
     system_stats = {
         'startups': Startup.objects.count(),
+        'mentors': Mentor.objects.filter(is_active=True).count(),
+        'investors': Investor.objects.filter(status='active').count(),
         'founders': Founder.objects.count(),
         'opportunities': Opportunity.objects.count(),
         'funding': Funding.objects.aggregate(total=Sum('amount'))['total'] or 0,
@@ -106,7 +109,13 @@ def index(request):
 
 
 def startups(request):
-    startup_list = Startup.objects.all()
+    startup_list = Startup.objects.filter(directory_visible=True)
+    # Keep the Edutech record as the final clean legacy entry in the directory.
+    from django.db.models import Case, IntegerField, Value, When
+    startup_list = startup_list.order_by(
+        Case(When(name__iexact='EDUTECH', then=Value(1)), default=Value(0), output_field=IntegerField()),
+        '-created_at',
+    )
     # Filter by type if specified
     startup_type = request.GET.get('type')
     if startup_type:
@@ -444,11 +453,11 @@ def partnership_success(request):
 
 
 def mentors(request):
-    return render(request, 'mentors.html')
+    return render(request, 'mentors.html', {'mentors': Mentor.objects.filter(is_active=True)})
 
 
 def investors(request):
-    return render(request, 'investors.html')
+    return render(request, 'investors.html', {'investors': Investor.objects.filter(status='active')})
 
 
 @login_required
@@ -457,4 +466,5 @@ def staff_list(request):
     if profile.user_type not in ['admin', 'staff']:
         messages.error(request, 'Only staff and admin users can view the staff directory.')
         return redirect('staff:dashboard')
-    return render(request, 'staff_list.html')
+    staff_users = User.objects.filter(is_staff=True).select_related('profile').order_by('username')
+    return render(request, 'staff_list.html', {'staff_users': staff_users})

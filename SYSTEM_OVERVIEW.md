@@ -18,7 +18,13 @@ The implemented system covers:
 - User accounts, profiles, login tracking, and profile ownership
 - Administrative access through Django Admin
 
-Mentor, investor, and staff pages are currently presentation/demo pages. Their records are managed in the browser only and are not persisted in the database.
+Mentors, investors, and staff are persisted records. Mentors and investors are managed by administrators through Django Admin, and their public panels and overview totals read directly from the database.
+
+The BUNI workbooks in `static/style/buni/` can be loaded with:
+
+```text
+python manage.py import_buni_data
+```
 
 ## 2. Technology Stack
 
@@ -217,6 +223,10 @@ Extends Django's built-in `User` model.
 - May link a user to one startup.
 - Stores company information, biography, avatar, phone, website, registration date, last login IP, login count, and email-verification fields.
 - Provides helpers for checking administrator/startup status and displaying a startup name.
+
+### Mentor and Investor
+
+These records store the BUNI-derived people and investment contacts used by the system. They are registered in Django Admin for administrator-controlled add, edit, and delete operations. The overview counts only active records and never uses hard-coded totals.
 
 ### RegistrationRate
 

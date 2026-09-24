@@ -55,25 +55,33 @@
                     <a href="{% url 'staff:startups' %}" class="nav-link {% if request.resolver_match.url_name == 'startups' %}active{% endif %}">
                         <i class="fas fa-rocket"></i>
                         <span>Startups</span>
-                        <span class="badge">24</span>
+                        <span class="badge">{{ live_counts.startups }}</span>
                     </a>
                 </div>
                 <div class="nav-item">
                     <a href="{% url 'staff:mentors' %}" class="nav-link {% if request.resolver_match.url_name == 'mentors' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i>
                         <span>Mentors</span>
-                        <span class="badge">12</span>
+                        <span class="badge">{{ live_counts.mentors }}</span>
                     </a>
                 </div>
                 <div class="nav-item">
                     <a href="{% url 'staff:investors' %}" class="nav-link {% if request.resolver_match.url_name == 'investors' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i>
                         <span>Investors</span>
-                        <span class="badge">8</span>
+                        <span class="badge">{{ live_counts.investors }}</span>
                     </a>
                 </div>
 
                 <div class="nav-section">Management</div>
+                {% if user.is_authenticated and user.profile.is_admin %}
+                <div class="nav-item">
+                    <a href="{% url 'staff:staff_list' %}" class="nav-link {% if request.resolver_match.url_name == 'staff_list' %}active{% endif %}">
+                        <i class="fas fa-user-shield"></i>
+                        <span>Staff Accounts</span>
+                    </a>
+                </div>
+                {% endif %}
                 <div class="nav-item">
                     <a href="{% url 'staff:partnership_form' %}" class="nav-link {% if request.resolver_match.url_name == 'partnership_form' %}active{% endif %}">
                         <i class="fas fa-handshake"></i>

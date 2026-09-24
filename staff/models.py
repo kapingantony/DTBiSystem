@@ -29,6 +29,10 @@ class Startup(models.Model):
     description = models.TextField(blank=True)
     industry = models.CharField(max_length=100, blank=True)
     website = models.URLField(blank=True)
+    contact_email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    source = models.CharField(max_length=255, default='DTBi')
+    directory_visible = models.BooleanField(default=True)
     logo = models.ImageField(upload_to='startups/logos/', blank=True, null=True)
     cover_image = models.ImageField(upload_to='startups/covers/', blank=True, null=True)
 
@@ -104,6 +108,49 @@ class Founder(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_role_display()})"
+
+
+class Mentor(models.Model):
+    """A mentor imported or maintained from BUNI participant records."""
+    name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    gender = models.CharField(max_length=50, blank=True)
+    education_level = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    role = models.CharField(max_length=255, blank=True)
+    skills = models.TextField(blank=True)
+    training_topics = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    source = models.CharField(max_length=255, default='BUNI')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Investor(models.Model):
+    """An investor or funding contact represented in the BUNI source data."""
+    name = models.CharField(max_length=255)
+    organization = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    website = models.URLField(blank=True)
+    description = models.TextField(blank=True)
+    investment_interest = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=50, default='active')
+    source = models.CharField(max_length=255, default='BUNI')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.organization or self.name
 
 
 class Opportunity(models.Model):
