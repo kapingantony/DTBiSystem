@@ -234,6 +234,7 @@
             {% endif %}
         </div>
     </details>
+    {% if upcoming_mentor_sessions %}<section class="card mt-20"><div class="card-header"><h3>Upcoming mentor support</h3></div><div class="card-body">{% for session in upcoming_mentor_sessions %}<p><strong>{{ session.date|date:'D, d M Y' }} at {{ session.start_time|time:'H:i' }}</strong> &middot; {{ session.mentor.name }} &middot; {{ session.hours }} hours{% if session.meeting_url %} &middot; <a href="{{ session.meeting_url }}" target="_blank" rel="noopener noreferrer">Join meeting</a>{% elif session.meeting_location %} &middot; {{ session.meeting_location }}{% endif %}</p>{% endfor %}</div></section>{% endif %}
 </div>
 
 <!-- Founders Tab -->

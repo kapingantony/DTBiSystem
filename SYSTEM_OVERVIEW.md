@@ -228,6 +228,18 @@ Extends Django's built-in `User` model.
 
 These records store the BUNI-derived people and investment contacts used by the system. They are registered in Django Admin for administrator-controlled add, edit, and delete operations. The overview counts only active records and never uses hard-coded totals.
 
+### MentorEngagement
+
+Connects a mentor with a startup for a scheduled or completed session.
+
+- Arrangements include date, start time, duration, topics, meeting location/link, and scheduling staff member.
+- New arrangements must be future dated, have a start time and meeting instructions, and avoid overlaps for the selected mentor and startup.
+- Existing rows default to `completed` so historic session records retain their meaning.
+- Staff can confirm, complete, cancel, or mark a no-show; startup owners can see future sessions linked to their own startup.
+- `MentorEngagementHistory` records scheduling and subsequent status/date/time changes for reporting and review.
+- Calendar files can be downloaded for scheduled or confirmed sessions.
+- Reports count completed mentoring as delivered activity and list planned arrangements separately.
+
 ### RegistrationRate
 
 Stores aggregate registration statistics for time periods such as all time, today, and this month. The post-migration signal creates default rows when they do not exist.
@@ -245,11 +257,14 @@ Stores login activity including user, IP address, timestamp, and startup type.
 
 ### Partnership
 
-Stores public partnership requests.
+Stores proposals that can connect DTBi/BUNI partners with startups and programme needs.
 
-- Independent of the `Startup` model.
-- Stores startup/contact name, email, phone, organization, partnership type, message, status, and timestamps.
-- New submissions default to `pending`.
+- Captures the partner/contact, partnership area, proposed contribution, expected startup benefit, and outcomes.
+- May be linked to an existing startup; blank means the proposal supports multiple startups or the wider programme.
+- Staff/admin workflow tracks pending, review, approved, in-progress, on-hold, completed, and rejected stages.
+- Assignments and internal review notes are staff-only; public submitters cannot see internal notes.
+- `PartnershipHistory` records submission and status transitions with the acting staff member and review note.
+- Partnership volume, pipeline status, completed work, and status history feed period reports.
 
 ## 7. URL Reference
 
@@ -268,7 +283,10 @@ Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `st
 | `/staff/startups/<slug>/` | Authenticated | View and, when authorized, edit a startup profile |
 | `/staff/partnership/` | Public | Submit a partnership request |
 | `/staff/partnership/success/` | Public | Partnership submission confirmation |
+| `/staff/data/partnerships/` | Staff/Admin | Review, assign, and track partnership requests |
 | `/staff/mentors/` | Public | Mentor demonstration page |
+| `/staff/mentor-sessions/` | Staff/Admin | Schedule, search, paginate, and update mentor appointments |
+| `/staff/mentor-sessions/<id>/calendar.ics` | Staff/Admin | Download an appointment for a calendar |
 | `/staff/investors/` | Public | Investor demonstration page |
 | `/staff/staff/` | Public | Staff demonstration page |
 | `/accounts/login/` | Public | Django class-based login route |
@@ -280,7 +298,7 @@ Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `st
 
 1. Opens `/` and sees the landing page.
 2. Browses the startup list.
-3. Filters startups by public or individual type.
+3. Searches and filters startups by name, industry, description, status, or type; directory pages are paginated.
 4. Submits a partnership request.
 5. Opens the login or registration page.
 
@@ -321,8 +339,10 @@ The selected login `user_type` is currently a form value only; it does not enfor
 ### Partnership request
 
 1. A visitor submits the partnership form.
-2. The request is stored as a `Partnership` with `pending` status.
-3. The visitor is redirected to the success page.
+2. The request is stored as a `Partnership` with `pending` status, and its initial status event is recorded.
+3. Staff/admin review the contribution, intended startup benefit, and outcomes in the Partnership Pipeline.
+4. A staff owner can be assigned, internal review notes added, and status advanced through delivery or closed as completed/rejected.
+5. Status changes are retained in `PartnershipHistory` and included in selected-period reports.
 
 ## 9. Forms and Validation
 
@@ -362,6 +382,8 @@ Templates are stored in `templates/`.
 | `startup_profile.html` | Startup overview and create/edit form with related sections |
 | `partnership_form.html` | Partnership request form |
 | `partnership_success.html` | Partnership confirmation |
+| `partnership_inbox.html` | Staff/admin partnership workflow and status history |
+| `mentor_sessions.html` | Staff/admin appointment scheduling and follow-up |
 | `mentors.html` | Mentor panel/demo page |
 | `investors.html` | Investor panel/demo page |
 | `staff_list.html` | Staff panel/demo page |
@@ -375,6 +397,8 @@ Frontend assets:
 
 - `static/style/style.css`: application styling.
 - `static/js/script.js`: sidebar behavior, filtering, modal handling, and browser-only mentor/investor/staff record manipulation.
+- `static/js/ambient.js`: low-contrast binary rain in the sidebar; it is local, pauses when the tab is hidden, and is disabled for reduced-motion preferences.
+- `partials/pagination.html`: shared server-side pagination controls that retain the current search/filter criteria.
 - `static/img/dtbi-logo.svg`: available logo asset.
 - `staticfiles/`: collected static files and Django Admin assets.
 
@@ -399,6 +423,12 @@ Migration history:
    - Adds registration rates, login notifications, user profiles, and profile views.
 3. `0003_alter_startup_contract_status.py`
    - Makes `Startup.contract_status` explicitly blankable.
+4. `0011_partnership_assigned_to_and_more.py`
+   - Adds structured partnership proposal details, startup linkage, staff ownership/review notes, expanded lifecycle statuses, and partnership status history.
+5. `0012_mentorengagement_meeting_location_and_more.py`
+   - Adds scheduling status, start time, meeting details, scheduler, and indexes for mentor appointments.
+6. `0013_mentorengagementhistory.py`
+   - Adds an audit trail for session arrangements and their status/schedule changes.
 
 The latest migration was generated with Django 5.1.4. The first two migration files have older generated headers, but the migration chain applies successfully in the current environment.
 
@@ -498,3 +528,11 @@ These items are important for the next development phase:
 ## 17. Current Status
 
 The project is runnable locally with the isolated `.venv` environment. Dependencies are declared in `requirements.txt`, migrations are up to date, `manage.py check` passes, and the development server responds successfully at `http://127.0.0.1:8000/`.
+
+## 18. Participant Journey and Outcomes
+
+The staff-only Participant Journey tracker at `/staff/data/participant-journey/` records a participant from BUNI community, internship, mentoring, or pre-incubation stages through DTBi pre-incubation, incubation, growth, and alumni follow-up. A journey can exist before a startup is formally registered; staff can link a startup later. Stage and status changes are recorded in a dated history table.
+
+Staff can record training, fabrication-lab/prototyping, business advisory, market-access, finance-access, hub-linkage, and other support. Existing mentor sessions remain the source of truth for mentorship delivery; follow-up actions can be assigned to staff or a mentor and linked to an existing session. Follow-up status changes and programme stage changes are timestamped. Existing Funding records remain the source of truth for investment.
+
+Dated outcome snapshots capture full-time and part-time jobs, monthly revenue with its currency, customers/users, and milestones. Period reports include stage changes, support delivered, snapshots, and outcome comparisons only for participants with both a snapshot before and another during the selected period. Repeated snapshots are not summed, and revenue is never combined across currencies. Historical participant stages, support, and outcomes are not inferred before this tracker was introduced. Participant journeys can also be bulk-imported through the Data Hub preview-and-confirm workflow; existing participants match by email or name/cohort, and startup links require one exact existing startup match. The additive schema is migrations `0014_participantjourney_participantfollowup_and_more`, `0015_participantfollowuphistory`, and `0016_alter_dataimportbatch_dataset`.

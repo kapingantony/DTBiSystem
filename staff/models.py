@@ -1,7 +1,9 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.utils import timezone
 from .storage import PrivateImportStorage
 
 
@@ -155,21 +157,75 @@ class Investor(models.Model):
 
 
 class MentorEngagement(models.Model):
-    """A dated mentoring activity that can be included in programme reports."""
+    """A scheduled or completed mentoring session linked to a startup."""
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('confirmed', 'Confirmed'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('no_show', 'No Show'),
+    ]
+
     mentor = models.ForeignKey(Mentor, on_delete=models.PROTECT, related_name='engagements')
     startup = models.ForeignKey(Startup, on_delete=models.CASCADE, related_name='mentor_engagements')
     date = models.DateField()
+    start_time = models.TimeField(null=True, blank=True)
     hours = models.DecimalField(max_digits=7, decimal_places=2, default=0)
     topics = models.TextField(blank=True)
     outcome = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
+    meeting_location = models.CharField(max_length=255, blank=True)
+    meeting_url = models.URLField(blank=True)
+    scheduled_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='scheduled_mentor_sessions',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-date', 'mentor__name']
-        indexes = [models.Index(fields=['date'])]
+        indexes = [models.Index(fields=['date']), models.Index(fields=['status', 'date', 'start_time'])]
+
+    def clean(self):
+        if self.status in {'scheduled', 'confirmed'}:
+            if self.start_time is None:
+                raise ValidationError({'start_time': 'A start time is required for scheduled sessions.'})
+            if self.hours <= 0:
+                raise ValidationError({'hours': 'Scheduled sessions must have a duration greater than zero.'})
+            today = timezone.localdate()
+            if self.date < today:
+                raise ValidationError({'date': 'Choose today or a future date for a scheduled session.'})
+            if self.date == today and self.start_time <= timezone.localtime().time().replace(tzinfo=None):
+                raise ValidationError({'start_time': 'Choose a start time that has not passed.'})
 
     def __str__(self):
-        return f'{self.mentor} — {self.startup} ({self.date})'
+        return f'{self.mentor} — {self.startup} ({self.date} {self.start_time or ""})'
+
+
+class MentorEngagementHistory(models.Model):
+    engagement = models.ForeignKey(
+        MentorEngagement, on_delete=models.CASCADE, related_name='history',
+    )
+    old_status = models.CharField(max_length=20, blank=True)
+    new_status = models.CharField(max_length=20, choices=MentorEngagement.STATUS_CHOICES)
+    old_date = models.DateField(null=True, blank=True)
+    new_date = models.DateField()
+    old_start_time = models.TimeField(null=True, blank=True)
+    new_start_time = models.TimeField(null=True, blank=True)
+    changed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='mentor_session_changes',
+    )
+    note = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+        indexes = [models.Index(fields=['changed_at', 'new_status'])]
+
+    def __str__(self):
+        return f'{self.engagement}: {self.old_status or "created"} → {self.new_status}'
 
 
 class Opportunity(models.Model):
@@ -485,11 +541,163 @@ class StartupStatusHistory(models.Model):
         return f'{self.startup}: {self.get_status_display()}'
 
 
+class ParticipantJourney(models.Model):
+    """Internal lifecycle record for a person moving through BUNI/DTBi support."""
+    STAGE_CHOICES = [
+        ('buni_community', 'BUNI community / outreach'),
+        ('buni_internship', 'BUNI internship'),
+        ('buni_mentoring', 'BUNI mentoring'),
+        ('buni_preincubation', 'BUNI pre-incubation'),
+        ('dtbi_preincubation', 'DTBi pre-incubation'),
+        ('dtbi_incubation', 'DTBi incubation'),
+        ('dtbi_growth', 'DTBi growth'),
+        ('alumni', 'Alumni / post-programme follow-up'),
+    ]
+    STATUS_CHOICES = [('active', 'Active'), ('paused', 'Paused'), ('completed', 'Completed'), ('exited', 'Exited')]
+
+    participant_name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    startup = models.ForeignKey(Startup, on_delete=models.SET_NULL, null=True, blank=True, related_name='participant_journeys')
+    current_stage = models.CharField(max_length=30, choices=STAGE_CHOICES, default='buni_community')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    cohort = models.CharField(max_length=120, blank=True)
+    started_on = models.DateField(default=timezone.localdate)
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_participant_journeys')
+    internal_notes = models.TextField(blank=True, help_text='Internal programme notes. Do not enter sensitive personal data.')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', 'participant_name']
+        indexes = [models.Index(fields=['current_stage', 'status']), models.Index(fields=['cohort'])]
+
+    def __str__(self):
+        return f'{self.participant_name} — {self.get_current_stage_display()}'
+
+
+class ParticipantJourneyHistory(models.Model):
+    journey = models.ForeignKey(ParticipantJourney, on_delete=models.CASCADE, related_name='history')
+    old_stage = models.CharField(max_length=30, blank=True)
+    new_stage = models.CharField(max_length=30, choices=ParticipantJourney.STAGE_CHOICES)
+    old_status = models.CharField(max_length=20, blank=True)
+    new_status = models.CharField(max_length=20, choices=ParticipantJourney.STATUS_CHOICES)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='participant_journey_changes')
+    note = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+
+    def __str__(self):
+        return f'{self.journey.participant_name}: {self.old_stage or "created"} → {self.new_stage}'
+
+
+class ParticipantSupport(models.Model):
+    SUPPORT_CHOICES = [
+        ('training', 'Training / capacity building'),
+        ('fabrication_lab', 'Fabrication lab / prototyping'),
+        ('business_advisory', 'Business advisory'),
+        ('market_access', 'Market access / procurement'),
+        ('finance_access', 'Finance / investor readiness'),
+        ('hub_linkage', 'Hub / ecosystem linkage'),
+        ('other', 'Other support'),
+    ]
+    journey = models.ForeignKey(ParticipantJourney, on_delete=models.CASCADE, related_name='support_deliveries')
+    support_type = models.CharField(max_length=30, choices=SUPPORT_CHOICES)
+    title = models.CharField(max_length=255)
+    delivered_on = models.DateField(default=timezone.localdate)
+    provider = models.CharField(max_length=255, blank=True, help_text='Team, partner, trainer, or facility')
+    hours = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_participant_support')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-delivered_on', '-created_at']
+
+    def __str__(self):
+        return f'{self.get_support_type_display()}: {self.title}'
+
+
+class ParticipantFollowUp(models.Model):
+    STATUS_CHOICES = [('open', 'Open'), ('in_progress', 'In progress'), ('done', 'Done'), ('cancelled', 'Cancelled')]
+    journey = models.ForeignKey(ParticipantJourney, on_delete=models.CASCADE, related_name='follow_ups')
+    action = models.CharField(max_length=255)
+    due_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='participant_follow_ups')
+    mentor = models.ForeignKey(Mentor, on_delete=models.SET_NULL, null=True, blank=True, related_name='participant_follow_ups')
+    mentor_session = models.ForeignKey(MentorEngagement, on_delete=models.SET_NULL, null=True, blank=True, related_name='participant_follow_ups')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_participant_follow_ups')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['due_date', '-created_at']
+
+    def clean(self):
+        if self.mentor_session_id and self.journey_id:
+            session_startup_id = self.mentor_session.startup_id
+            if not self.journey.startup_id or session_startup_id != self.journey.startup_id:
+                raise ValidationError({'mentor_session': 'Choose a session linked to this participant’s startup.'})
+            if self.mentor_id and self.mentor_session.mentor_id != self.mentor_id:
+                raise ValidationError({'mentor': 'The selected mentor must match the linked session.'})
+
+    def __str__(self):
+        return f'{self.journey.participant_name}: {self.action}'
+
+
+class ParticipantFollowUpHistory(models.Model):
+    follow_up = models.ForeignKey(ParticipantFollowUp, on_delete=models.CASCADE, related_name='history')
+    old_status = models.CharField(max_length=20, blank=True)
+    new_status = models.CharField(max_length=20, choices=ParticipantFollowUp.STATUS_CHOICES)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='participant_follow_up_changes')
+    note = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+
+    def __str__(self):
+        return f'{self.follow_up}: {self.old_status or "created"} → {self.new_status}'
+
+
+class ParticipantOutcome(models.Model):
+    journey = models.ForeignKey(ParticipantJourney, on_delete=models.CASCADE, related_name='outcomes')
+    recorded_on = models.DateField(default=timezone.localdate)
+    full_time_jobs = models.PositiveIntegerField(default=0)
+    part_time_jobs = models.PositiveIntegerField(default=0)
+    monthly_revenue = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    revenue_currency = models.CharField(max_length=3, default='TZS')
+    customers_or_users = models.PositiveIntegerField(null=True, blank=True)
+    milestone = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_participant_outcomes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-recorded_on', '-created_at']
+        indexes = [models.Index(fields=['recorded_on'])]
+
+    def clean(self):
+        if self.monthly_revenue is not None and self.monthly_revenue < 0:
+            raise ValidationError({'monthly_revenue': 'Monthly revenue cannot be negative.'})
+        if len(self.revenue_currency) != 3 or not self.revenue_currency.isalpha():
+            raise ValidationError({'revenue_currency': 'Use a three-letter currency code such as TZS or USD.'})
+        self.revenue_currency = self.revenue_currency.upper()
+
+    def __str__(self):
+        return f'{self.journey.participant_name}: outcomes on {self.recorded_on}'
+
+
 class DataImportBatch(models.Model):
     DATASETS = [
         ('startup', 'Startups'),
         ('mentor', 'Mentors'),
         ('investor', 'Investors'),
+        ('participant', 'Participant journeys'),
     ]
     STATUSES = [('preview', 'Ready to import'), ('completed', 'Completed'), ('failed', 'Failed')]
 
@@ -522,26 +730,63 @@ class Partnership(models.Model):
         ('distribution', 'Distribution Partnership'),
         ('research', 'Research Collaboration'),
         ('investment', 'Investment Partnership'),
+        ('funding', 'Funding and Co-investment'),
+        ('mentorship', 'Mentorship and Capacity Building'),
+        ('market_access', 'Market Access and Procurement'),
+        ('ecosystem_support', 'Ecosystem Services and Infrastructure'),
         ('other', 'Other'),
     ]
 
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('approved', 'Approved'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('on_hold', 'On Hold'),
         ('rejected', 'Rejected'),
         ('under_review', 'Under Review'),
     ]
 
     startup_name = models.CharField(max_length=255)
+    related_startup = models.ForeignKey(
+        Startup, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='partnership_requests',
+    )
     contact_name = models.CharField(max_length=255)
     email = models.EmailField()
     phone = models.CharField(max_length=30, blank=True)
     organization = models.CharField(max_length=255, blank=True)
     partnership_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='strategic')
+    proposed_contribution = models.TextField(blank=True)
+    startup_benefit = models.TextField(blank=True)
+    expected_outcomes = models.TextField(blank=True)
     message = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    assigned_to = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assigned_partnerships',
+    )
+    review_notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.startup_name} — {self.contact_name}"
+
+
+class PartnershipHistory(models.Model):
+    partnership = models.ForeignKey(Partnership, on_delete=models.CASCADE, related_name='history')
+    old_status = models.CharField(max_length=20, blank=True)
+    new_status = models.CharField(max_length=20, choices=Partnership.STATUS_CHOICES)
+    changed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='partnership_status_changes',
+    )
+    note = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+
+    def __str__(self):
+        return f'{self.partnership}: {self.old_status or "submitted"} → {self.new_status}'

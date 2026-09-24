@@ -16,12 +16,30 @@ def _fallback_summary(data):
     funding = ', '.join(f'{currency} {amount:,.2f}' for currency, amount in sorted(data['funding_totals'].items()))
     if not funding:
         funding = 'no funding recorded in the selected period'
+    outcome_changes = data['participant_outcome_changes']
+    revenue_change = ', '.join(
+        f'{currency} {amount:,.2f}' for currency, amount in sorted(outcome_changes['revenue_by_currency'].items())
+    ) or 'no comparable revenue change available'
     return (
         f"From {data['start_date']} to {data['end_date']}, {data['new_startups']} startups were added "
         f"(versus {data['previous_startups']} in the preceding equal-length period), and {current} startups "
         f"are currently recorded. The system recorded {data['mentor_sessions']} mentor sessions "
         f"({data['mentor_hours']:,.1f} hours), {data['new_mentors']} new mentors, and "
         f"{data['new_investors']} new investors. Funding recorded: {funding}. "
+        f"There were {data['new_partnerships']} new partnership requests, with "
+        f"{data['active_partnership_pipeline']} requests in the active pipeline and "
+        f"{data['completed_partnerships']} completed during the period. "
+        f"{data['scheduled_mentor_sessions']} mentor sessions are currently arranged for the selected dates. "
+        f"{data['cancelled_mentor_sessions']} sessions were cancelled or marked no-show in the period. "
+        f"There are {data['participant_journeys_current']} participant journeys currently tracked, "
+        f"with {len(data['participant_journey_changes'])} stage or status changes and "
+        f"{data['participant_support_total']} additional support records in the selected period. "
+        f"{data['participant_followups_completed']} follow-up actions were completed and "
+        f"{data['participant_followups_due']} remain open and due in that period. "
+        f"Outcome comparisons are available for {data['participant_outcome_comparisons']} participants "
+        f"with snapshots both before and during the period: net job change was "
+        f"{outcome_changes['full_time_jobs']} full-time and {outcome_changes['part_time_jobs']} part-time, "
+        f"and monthly revenue change was {revenue_change}. "
         f"Tracked unique daily entity visits: {data['page_visit_total']}."
     )
 
@@ -54,6 +72,24 @@ def summarize_report(data):
                                 for currency, amount in data['funding_totals'].items()},
         'kpi_observations': data['kpi_observations'],
         'unique_daily_entity_visits': data['page_visit_total'],
+        'new_partnership_requests': data['new_partnerships'],
+        'active_partnership_pipeline': data['active_partnership_pipeline'],
+        'completed_partnerships_in_period': data['completed_partnerships'],
+        'current_partnership_status_counts': {row['status']: row['total'] for row in data['partnership_statuses']},
+        'scheduled_mentor_sessions_in_period': data['scheduled_mentor_sessions'],
+        'session_cancellations_or_no_shows_in_period': data['cancelled_mentor_sessions'],
+        'participant_journeys_currently_tracked': data['participant_journeys_current'],
+        'participant_stage_or_status_changes_in_period': len(data['participant_journey_changes']),
+        'additional_support_records_in_period': data['participant_support_total'],
+        'open_followups_due_in_period': data['participant_followups_due'],
+        'followups_completed_in_period': data['participant_followups_completed'],
+        'participants_with_comparable_outcome_snapshots': data['participant_outcome_comparisons'],
+        'change_in_full_time_jobs_for_comparable_participants': data['participant_outcome_changes']['full_time_jobs'],
+        'change_in_part_time_jobs_for_comparable_participants': data['participant_outcome_changes']['part_time_jobs'],
+        'change_in_customers_or_users_for_comparable_participants': data['participant_outcome_changes']['customers_or_users'],
+        'monthly_revenue_change_by_currency_for_comparable_participants': {
+            currency: float(amount) for currency, amount in data['participant_outcome_changes']['revenue_by_currency'].items()
+        },
     }
     cache_key = 'report-ai-summary:' + hashlib.sha256(
         json.dumps({'metrics': metrics, 'model': model, 'endpoint': endpoint}, sort_keys=True).encode('utf-8')

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Partnership Pipeline - DTBi{% endblock %}
+{% block page_title %}Partnership Pipeline{% endblock %}
+{% block content %}
+<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:data_hub' %}"><i class="fas fa-arrow-left"></i> Data Hub</a><span>Review collaboration offers, assign an owner, and track delivery for the startup ecosystem.</span></div>
+<div class="stats-grid mt-20">
+    <div class="stat-card blue"><div class="stat-value">{{ totals.pending|default:0 }}</div><div class="stat-label">New requests</div></div>
+    <div class="stat-card"><div class="stat-value">{{ totals.under_review|default:0 }}</div><div class="stat-label">Under review</div></div>
+    <div class="stat-card"><div class="stat-value">{{ totals.in_progress|default:0 }}</div><div class="stat-label">In progress</div></div>
+    <div class="stat-card"><div class="stat-value">{{ totals.completed|default:0 }}</div><div class="stat-label">Completed</div></div>
+</div>
+<section class="card mt-20"><div class="card-body">
+    <form method="get" class="filter-bar">
+        <input class="form-input" type="search" name="q" value="{{ search }}" placeholder="Search organization, contact, email, or startup">
+        <select class="filter-select" name="status"><option value="">All statuses</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <select class="filter-select" name="type"><option value="">All partnership areas</option>{% for value,label in type_choices %}<option value="{{ value }}" {% if type_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <button class="btn btn-primary" type="submit">Filter</button>
+    </form>
+    <div class="table-wrap"><table><thead><tr><th>Request</th><th>Contact</th><th>Partnership area</th><th>Startup link</th><th>Received</th><th>Review &amp; status</th></tr></thead><tbody>
+    {% for partnership in partnerships %}
+    <tr>
+        <td><strong>{{ partnership.organization|default:partnership.startup_name }}</strong><br><span class="text-muted">{{ partnership.startup_name }}</span><details class="mt-20"><summary>Proposal details</summary><p><strong>Partner contribution</strong><br>{{ partnership.proposed_contribution|linebreaksbr }}</p><p><strong>Startup benefit</strong><br>{{ partnership.startup_benefit|linebreaksbr }}</p><p><strong>Expected outcomes</strong><br>{{ partnership.expected_outcomes|linebreaksbr }}</p><p><strong>Additional details</strong><br>{{ partnership.message|linebreaksbr }}</p></details></td>
+        <td>{{ partnership.contact_name }}<br><a href="mailto:{{ partnership.email }}">{{ partnership.email }}</a>{% if partnership.phone %}<br>{{ partnership.phone }}{% endif %}</td>
+        <td>{{ partnership.get_partnership_type_display }}</td>
+        <td>{% if partnership.related_startup %}<a href="{% url 'staff:startup_profile' slug=partnership.related_startup.slug %}">{{ partnership.related_startup.name }}</a>{% else %}Programme-wide{% endif %}</td>
+        <td>{{ partnership.created_at|date:'Y-m-d' }}</td>
+        <td><form method="post">{% csrf_token %}<input type="hidden" name="partnership_id" value="{{ partnership.pk }}">
+            <label>Status <select class="form-select" name="status">{% for value,label in status_choices %}<option value="{{ value }}" {% if partnership.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+            <label class="mt-20">Owner <select class="form-select" name="assigned_to"><option value="">Unassigned</option>{% for person in assignees %}<option value="{{ person.pk }}" {% if partnership.assigned_to_id == person.pk %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</select></label>
+            <label class="mt-20">Internal review notes <textarea class="form-textarea" name="review_notes" rows="3" placeholder="Progress, next action, or decision context">{{ partnership.review_notes }}</textarea></label>
+            <button class="btn btn-primary mt-20" type="submit">Save review</button>
+        </form></td>
+    </tr>
+    {% empty %}<tr><td colspan="6">No partnership requests match these filters.</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% include "partials/pagination.html" %}
+</div></section>
+<section class="card mt-20"><div class="card-header"><h3>Recent status history</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Request</th><th>Change</th><th>Changed by</th><th>Time</th><th>Note</th></tr></thead><tbody>
+{% for item in history %}<tr><td>{{ item.partnership.organization|default:item.partnership.startup_name }}</td><td>{{ item.get_old_status_display|default:'Submitted' }} &rarr; {{ item.get_new_status_display }}</td><td>{{ item.changed_by.get_full_name|default:item.changed_by.username|default:'Public submission' }}</td><td>{{ item.changed_at|date:'Y-m-d H:i' }}</td><td>{{ item.note|default:'-'|truncatechars:120 }}</td></tr>{% empty %}<tr><td colspan="5">No status changes recorded yet.</td></tr>{% endfor %}
+</tbody></table></div></div></section>
+{% endblock %}

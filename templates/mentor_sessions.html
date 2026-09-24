@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Mentor Sessions - DTBi{% endblock %}
+{% block page_title %}Mentor Session Arrangements{% endblock %}
+{% block content %}
+<div class="welcome-banner"><h2>Plan mentor support for startups</h2><p>Arrange a session with its startup, date, time, duration, discussion topics, and meeting details. Scheduling prevents overlapping appointments for the same mentor or startup.</p></div>
+<div class="stats-grid mt-20"><div class="stat-card blue"><div class="stat-value">{{ upcoming_count }}</div><div class="stat-label">Upcoming sessions</div></div><div class="stat-card"><div class="stat-value">{{ overdue_count }}</div><div class="stat-label">Past sessions to update</div></div></div>
+<section class="card mt-20"><div class="card-header"><h3>Arrange a session</h3></div><div class="card-body">
+    <form method="post" class="session-form-grid">{% csrf_token %}<input type="hidden" name="action" value="schedule">
+        {% include "partials/form_errors.html" with bound_form=form %}
+        {% for field in form %}<div class="session-form-field{% if field.name == 'topics' or field.name == 'meeting_location' or field.name == 'meeting_url' %} session-form-field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<div class="form-help">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}
+        <div class="session-form-actions"><button class="btn btn-primary" type="submit"><i class="fas fa-calendar-plus"></i> Schedule session</button></div>
+    </form>
+</div></section>
+<section class="card mt-20"><div class="card-header"><h3>Scheduled sessions</h3></div><div class="card-body">
+    <form method="get" class="session-filter-form"><input class="form-input" type="search" name="q" value="{{ search }}" placeholder="Search mentor, startup, topic, or venue"><select class="filter-select" name="window"><option value="">Upcoming and overdue</option><option value="upcoming" {% if window == 'upcoming' %}selected{% endif %}>Upcoming only</option><option value="overdue" {% if window == 'overdue' %}selected{% endif %}>Past due</option></select><button class="btn btn-outline" type="submit">Filter</button></form>
+    <div class="table-wrap"><table><thead><tr><th>When</th><th>Mentor</th><th>Startup</th><th>Arrangement</th><th>Topics</th><th>Update</th></tr></thead><tbody>
+    {% for session in sessions %}<tr>
+        <td>{{ session.date|date:'D, d M Y' }}<br><strong>{{ session.start_time|time:'H:i' }}</strong><br>{{ session.hours }} hours</td>
+        <td><a href="{% url 'staff:mentor_profile' pk=session.mentor_id %}">{{ session.mentor.name }}</a></td>
+        <td><a href="{% url 'staff:startup_profile' slug=session.startup.slug %}">{{ session.startup.name }}</a></td>
+        <td>{{ session.get_status_display }}<br>{% if session.meeting_url %}<a href="{{ session.meeting_url }}" target="_blank" rel="noopener noreferrer">Join link</a>{% else %}{{ session.meeting_location }}{% endif %}<br><a href="{% url 'staff:mentor_session_ical' pk=session.pk %}">Add to calendar (.ics)</a></td>
+        <td>{{ session.topics|default:'Not specified'|truncatechars:180 }}</td>
+        <td><form method="post" class="session-update-form">{% csrf_token %}<input type="hidden" name="action" value="update"><input type="hidden" name="session_id" value="{{ session.pk }}"><select class="form-select" name="status">{% for value,label in status_choices %}<option value="{{ value }}" {% if session.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><textarea class="form-textarea" name="outcome" rows="2" placeholder="Record outcome when completed">{{ session.outcome }}</textarea><button class="btn btn-outline btn-sm" type="submit">Save status</button></form></td>
+    </tr>{% empty %}<tr><td colspan="6">No scheduled sessions match this view. Create an arrangement above to get started.</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% include "partials/pagination.html" %}
+</div></section>
+<section class="card mt-20"><div class="card-header"><h3>Recent session changes</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Session</th><th>Status</th><th>Date/time</th><th>Changed by</th><th>When</th><th>Note</th></tr></thead><tbody>{% for item in recent_session_history %}<tr><td>{{ item.engagement.mentor.name }} / {{ item.engagement.startup.name }}</td><td>{{ item.old_status|default:'Created'|title }} &rarr; {{ item.new_status|title }}</td><td>{% if item.old_date %}{{ item.old_date }} {{ item.old_start_time|time:'H:i' }} &rarr; {% endif %}{{ item.new_date }} {{ item.new_start_time|time:'H:i' }}</td><td>{{ item.changed_by.get_full_name|default:item.changed_by.username|default:'-' }}</td><td>{{ item.changed_at|date:'Y-m-d H:i' }}</td><td>{{ item.note|default:'-'|truncatechars:100 }}</td></tr>{% empty %}<tr><td colspan="6">No session changes have been recorded yet.</td></tr>{% endfor %}</tbody></table></div></div></section>
+{% endblock %}

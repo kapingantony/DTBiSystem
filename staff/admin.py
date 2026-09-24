@@ -3,8 +3,10 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 
 from .models import (
-    DataImportBatch, Investor, Mentor, MentorEngagement, PageVisit,
-    Startup, StartupStatusHistory, UserProfile,
+    DataImportBatch, Investor, Mentor, MentorEngagement, MentorEngagementHistory, PageVisit,
+    Partnership, PartnershipHistory, Startup, StartupStatusHistory, UserProfile,
+    ParticipantJourney, ParticipantJourneyHistory, ParticipantSupport,
+    ParticipantFollowUp, ParticipantFollowUpHistory, ParticipantOutcome,
 )
 
 
@@ -78,9 +80,49 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(MentorEngagement)
 class MentorEngagementAdmin(admin.ModelAdmin):
-    list_display = ('mentor', 'startup', 'date', 'hours')
-    list_filter = ('date',)
-    search_fields = ('mentor__name', 'startup__name', 'topics', 'outcome')
+    list_display = ('mentor', 'startup', 'date', 'start_time', 'hours', 'status')
+    list_filter = ('status', 'date', 'mentor')
+    search_fields = ('mentor__name', 'startup__name', 'topics', 'outcome', 'meeting_location')
+    readonly_fields = ('created_at', 'updated_at')
+
+    def save_model(self, request, obj, form, change):
+        previous = None
+        if change:
+            previous = MentorEngagement.objects.filter(pk=obj.pk).values('status', 'date', 'start_time').first()
+        super().save_model(request, obj, form, change)
+        if previous is None or any(previous[key] != getattr(obj, key) for key in ('status', 'date', 'start_time')):
+            MentorEngagementHistory.objects.create(
+                engagement=obj,
+                old_status=previous['status'] if previous else '',
+                new_status=obj.status,
+                old_date=previous['date'] if previous else None,
+                new_date=obj.date,
+                old_start_time=previous['start_time'] if previous else None,
+                new_start_time=obj.start_time,
+                changed_by=request.user,
+                note=obj.outcome if change else 'Session scheduled in admin.',
+            )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'mentor':
+            kwargs['queryset'] = Mentor.objects.filter(is_active=True)
+        if db_field.name == 'startup':
+            kwargs['queryset'] = Startup.objects.filter(status='active')
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(MentorEngagementHistory)
+class MentorEngagementHistoryAdmin(admin.ModelAdmin):
+    list_display = ('engagement', 'old_status', 'new_status', 'old_date', 'new_date', 'changed_by', 'changed_at')
+    list_filter = ('new_status', 'changed_at')
+    search_fields = ('engagement__mentor__name', 'engagement__startup__name', 'note')
+    readonly_fields = ('engagement', 'old_status', 'new_status', 'old_date', 'new_date', 'old_start_time', 'new_start_time', 'changed_by', 'note', 'changed_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(PageVisit)
@@ -106,3 +148,115 @@ class DataImportBatchAdmin(admin.ModelAdmin):
     search_fields = ('original_filename', 'uploaded_by__username')
     fields = ('dataset', 'original_filename', 'uploaded_by', 'status', 'headers', 'field_mapping', 'total_rows', 'created_count', 'updated_count', 'skipped_count', 'row_errors', 'created_at', 'completed_at')
     readonly_fields = fields
+
+
+@admin.register(Partnership)
+class PartnershipAdmin(admin.ModelAdmin):
+    list_display = ('startup_name', 'organization', 'partnership_type', 'status', 'assigned_to', 'created_at', 'updated_at')
+    list_filter = ('status', 'partnership_type', 'created_at')
+    search_fields = ('startup_name', 'organization', 'contact_name', 'email', 'related_startup__name')
+    readonly_fields = ('created_at', 'updated_at')
+    list_select_related = ('related_startup', 'assigned_to')
+
+    def save_model(self, request, obj, form, change):
+        previous_status = Partnership.objects.filter(pk=obj.pk).values_list('status', flat=True).first() if change else ''
+        super().save_model(request, obj, form, change)
+        if not change or previous_status != obj.status:
+            PartnershipHistory.objects.create(
+                partnership=obj,
+                old_status=previous_status or '',
+                new_status=obj.status,
+                changed_by=request.user,
+                note=obj.review_notes if change else 'Request created in admin.',
+            )
+
+
+@admin.register(PartnershipHistory)
+class PartnershipHistoryAdmin(admin.ModelAdmin):
+    list_display = ('partnership', 'old_status', 'new_status', 'changed_by', 'changed_at')
+    list_filter = ('new_status', 'changed_at')
+    search_fields = ('partnership__startup_name', 'partnership__organization', 'note')
+    readonly_fields = ('partnership', 'old_status', 'new_status', 'changed_by', 'note', 'changed_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ParticipantJourney)
+class ParticipantJourneyAdmin(admin.ModelAdmin):
+    list_display = ('participant_name', 'startup', 'current_stage', 'status', 'cohort', 'assigned_to', 'updated_at')
+    list_filter = ('current_stage', 'status', 'cohort')
+    search_fields = ('participant_name', 'email', 'startup__name', 'cohort')
+    list_select_related = ('startup', 'assigned_to')
+
+    def save_model(self, request, obj, form, change):
+        previous = ParticipantJourney.objects.filter(pk=obj.pk).values('current_stage', 'status').first() if change else None
+        super().save_model(request, obj, form, change)
+        if previous is None or previous['current_stage'] != obj.current_stage or previous['status'] != obj.status:
+            ParticipantJourneyHistory.objects.create(
+                journey=obj, old_stage=previous['current_stage'] if previous else '',
+                new_stage=obj.current_stage, old_status=previous['status'] if previous else '',
+                new_status=obj.status, changed_by=request.user,
+                note='Journey created in admin.' if previous is None else 'Journey stage/status updated in admin.',
+            )
+
+
+@admin.register(ParticipantJourneyHistory)
+class ParticipantJourneyHistoryAdmin(admin.ModelAdmin):
+    list_display = ('journey', 'old_stage', 'new_stage', 'old_status', 'new_status', 'changed_by', 'changed_at')
+    list_filter = ('new_stage', 'new_status', 'changed_at')
+    search_fields = ('journey__participant_name', 'journey__startup__name', 'note')
+    readonly_fields = ('journey', 'old_stage', 'new_stage', 'old_status', 'new_status', 'changed_by', 'note', 'changed_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ParticipantSupport)
+class ParticipantSupportAdmin(admin.ModelAdmin):
+    list_display = ('journey', 'support_type', 'title', 'delivered_on', 'provider', 'hours')
+    list_filter = ('support_type', 'delivered_on')
+    search_fields = ('journey__participant_name', 'journey__startup__name', 'title', 'provider')
+
+
+@admin.register(ParticipantFollowUp)
+class ParticipantFollowUpAdmin(admin.ModelAdmin):
+    list_display = ('action', 'journey', 'due_date', 'status', 'assigned_to', 'mentor')
+    list_filter = ('status', 'due_date')
+    search_fields = ('action', 'journey__participant_name', 'journey__startup__name', 'mentor__name')
+
+    def save_model(self, request, obj, form, change):
+        previous = ParticipantFollowUp.objects.filter(pk=obj.pk).values_list('status', flat=True).first() if change else None
+        super().save_model(request, obj, form, change)
+        if previous is None or previous != obj.status:
+            ParticipantFollowUpHistory.objects.create(
+                follow_up=obj, old_status=previous or '', new_status=obj.status,
+                changed_by=request.user, note='Follow-up created or updated in admin.',
+            )
+
+
+@admin.register(ParticipantFollowUpHistory)
+class ParticipantFollowUpHistoryAdmin(admin.ModelAdmin):
+    list_display = ('follow_up', 'old_status', 'new_status', 'changed_by', 'changed_at')
+    list_filter = ('new_status', 'changed_at')
+    search_fields = ('follow_up__action', 'follow_up__journey__participant_name', 'note')
+    readonly_fields = ('follow_up', 'old_status', 'new_status', 'changed_by', 'note', 'changed_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ParticipantOutcome)
+class ParticipantOutcomeAdmin(admin.ModelAdmin):
+    list_display = ('journey', 'recorded_on', 'full_time_jobs', 'part_time_jobs', 'monthly_revenue', 'revenue_currency', 'customers_or_users')
+    list_filter = ('recorded_on', 'revenue_currency')
+    search_fields = ('journey__participant_name', 'journey__startup__name', 'milestone')

@@ -19,6 +19,7 @@
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--navy-500); box-shadow: 0 0 0 3px var(--navy-100); }
     .form-textarea { resize: vertical; min-height: 100px; }
     .form-help { font-size: 0.72rem; color: var(--gray-400); margin-top: 3px; }
+    .error-list { margin: 0 0 16px; padding: 10px 14px 10px 30px; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; border-radius: var(--radius-sm); font-size: 0.82rem; }
 
     .partner-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
     .partner-feature { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 20px; text-align: center; }
@@ -33,7 +34,7 @@
 
 <div class="partner-hero">
     <h2>Let's Build Together</h2>
-    <p>We are always looking for strategic partners, collaborators, and organizations that share our vision of supporting early-stage startups across Africa. Tell us about yourself and how we can work together.</p>
+    <p>We connect organizations with DTBi/BUNI startups through funding, mentoring, market access, technical collaboration, research, and other practical support. Describe what your organization can contribute and the outcomes you hope to achieve.</p>
 </div>
 
 <div class="partner-features">
@@ -66,6 +67,7 @@
     <div class="card-body">
         <form method="post">
             {% csrf_token %}
+            {% include "partials/form_errors.html" with bound_form=form %}
 
             <div class="form-section-title">Your Information</div>
             <div class="form-row">
@@ -92,13 +94,30 @@
             <div class="form-section-title" style="margin-top: 8px;">Partnership Details</div>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="{{ form.startup_name.id_for_label }}">Startup / Company Name *</label>
+                    <label for="{{ form.startup_name.id_for_label }}">Requesting Startup or Company Name *</label>
                     {{ form.startup_name }}
                 </div>
                 <div class="form-group">
-                    <label for="{{ form.partnership_type.id_for_label }}">Partnership Type *</label>
-                    {{ form.partnership_type }}
+                    <label for="{{ form.related_startup.id_for_label }}">Related DTBi/BUNI startup (optional)</label>
+                    {{ form.related_startup }}
+                    <div class="form-help">Leave blank if the proposal supports several startups or the wider programme.</div>
                 </div>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.partnership_type.id_for_label }}">Partnership Type *</label>
+                {{ form.partnership_type }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.proposed_contribution.id_for_label }}">{{ form.proposed_contribution.label }} *</label>
+                {{ form.proposed_contribution }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.startup_benefit.id_for_label }}">{{ form.startup_benefit.label }} *</label>
+                {{ form.startup_benefit }}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.expected_outcomes.id_for_label }}">{{ form.expected_outcomes.label }} *</label>
+                {{ form.expected_outcomes }}
             </div>
             <div class="form-group">
                 <label for="{{ form.message.id_for_label }}">Your Message *</label>

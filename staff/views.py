@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -10,7 +11,7 @@ from django.http import JsonResponse
 
 from .models import (
     Startup, Founder, Opportunity, Funding,
-    KPI, PitchDeck, ServiceOffered, Partnership,
+    KPI, PitchDeck, ServiceOffered, Partnership, PartnershipHistory,
     UserProfile, RegistrationRate, ProfileView, LoginNotification, SiteVisit,
     Mentor, Investor
 )
@@ -119,9 +120,35 @@ def startups(request):
     )
     # Filter by type if specified
     startup_type = request.GET.get('type')
-    if startup_type:
+    if startup_type in {'public', 'individual'}:
         startup_list = startup_list.filter(startup_type=startup_type)
-    context = {'startup_list': startup_list, 'filter_type': startup_type}
+    search_query = request.GET.get('q', '').strip()
+    industry_filter = request.GET.get('industry', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    if search_query:
+        startup_list = startup_list.filter(
+            Q(name__icontains=search_query) | Q(industry__icontains=search_query)
+            | Q(description__icontains=search_query) | Q(source__icontains=search_query)
+        )
+    if industry_filter:
+        startup_list = startup_list.filter(industry__iexact=industry_filter)
+    if status_filter in dict(Startup.STATUS_CHOICES):
+        startup_list = startup_list.filter(status=status_filter)
+    industries = Startup.objects.filter(directory_visible=True).exclude(industry='').values_list('industry', flat=True).distinct().order_by('industry')
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+    page_obj = Paginator(startup_list, 25).get_page(request.GET.get('page'))
+    context = {
+        'startup_list': page_obj,
+        'page_obj': page_obj,
+        'filter_type': startup_type or '',
+        'search_query': search_query,
+        'industry_filter': industry_filter,
+        'status_filter': status_filter,
+        'industries': industries,
+        'status_choices': Startup.STATUS_CHOICES,
+        'page_query': query_params.urlencode(),
+    }
     return render(request, 'startups.html', context)
 
 
@@ -378,6 +405,7 @@ def startup_profile(request, slug):
 
     # Only the owner of the startup (or a hub admin) may change it.
     can_edit = profile.is_admin or request.user.is_staff or profile.startup_id == startup.id
+    can_view_mentor_sessions = profile.is_admin or profile.is_staff_role or profile.startup_id == startup.id
 
     if request.method == 'POST':
         if not can_edit:
@@ -433,6 +461,9 @@ def startup_profile(request, slug):
         'creating': False,
         'can_edit': can_edit,
         'show_admin_fields': profile.is_admin,
+        'upcoming_mentor_sessions': startup.mentor_engagements.filter(
+            status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate()
+        ).select_related('mentor').order_by('date', 'start_time')[:10] if can_view_mentor_sessions else (),
     }
     return render(request, 'startup_profile.html', context)
 
@@ -442,7 +473,13 @@ def partnership_form(request):
     if request.method == 'POST':
         form = PartnershipForm(request.POST)
         if form.is_valid():
-            form.save()
+            partnership = form.save()
+            PartnershipHistory.objects.create(
+                partnership=partnership,
+                old_status='',
+                new_status=partnership.status,
+                note='Partnership request submitted.',
+            )
             messages.success(request, 'Partnership request submitted. We will be in touch.')
             return redirect('staff:partnership_success')
     else:
@@ -457,12 +494,58 @@ def partnership_success(request):
 
 def mentors(request):
     record_page_visit(request, 'mentor', 'directory', 'Mentor directory')
-    return render(request, 'mentors.html', {'mentors': Mentor.objects.filter(is_active=True)})
+    queryset = Mentor.objects.filter(is_active=True)
+    total_count = queryset.count()
+    search_query = request.GET.get('q', '').strip()
+    role_filter = request.GET.get('role', '').strip()
+    if search_query:
+        queryset = queryset.filter(
+            Q(name__icontains=search_query) | Q(email__icontains=search_query)
+            | Q(role__icontains=search_query) | Q(education_level__icontains=search_query)
+            | Q(skills__icontains=search_query) | Q(training_topics__icontains=search_query)
+        )
+    if role_filter:
+        queryset = queryset.filter(role__iexact=role_filter)
+    page_params = request.GET.copy()
+    page_params.pop('page', None)
+    page_obj = Paginator(queryset.order_by('name'), 12).get_page(request.GET.get('page'))
+    return render(request, 'mentors.html', {
+        'mentors': page_obj,
+        'page_obj': page_obj,
+        'mentor_count': total_count,
+        'roles': Mentor.objects.filter(is_active=True).exclude(role='').values_list('role', flat=True).distinct().order_by('role'),
+        'search_query': search_query,
+        'role_filter': role_filter,
+        'page_query': page_params.urlencode(),
+    })
 
 
 def investors(request):
     record_page_visit(request, 'investor', 'directory', 'Investor directory')
-    return render(request, 'investors.html', {'investors': Investor.objects.filter(status='active')})
+    queryset = Investor.objects.filter(status='active')
+    total_count = queryset.count()
+    search_query = request.GET.get('q', '').strip()
+    interest_filter = request.GET.get('interest', '').strip()
+    if search_query:
+        queryset = queryset.filter(
+            Q(name__icontains=search_query) | Q(organization__icontains=search_query)
+            | Q(email__icontains=search_query) | Q(investment_interest__icontains=search_query)
+            | Q(description__icontains=search_query)
+        )
+    if interest_filter:
+        queryset = queryset.filter(investment_interest__iexact=interest_filter)
+    page_params = request.GET.copy()
+    page_params.pop('page', None)
+    page_obj = Paginator(queryset.order_by('name', 'organization'), 12).get_page(request.GET.get('page'))
+    return render(request, 'investors.html', {
+        'investors': page_obj,
+        'page_obj': page_obj,
+        'investor_count': total_count,
+        'interests': Investor.objects.filter(status='active').exclude(investment_interest='').values_list('investment_interest', flat=True).distinct().order_by('investment_interest'),
+        'search_query': search_query,
+        'interest_filter': interest_filter,
+        'page_query': page_params.urlencode(),
+    })
 
 
 @login_required

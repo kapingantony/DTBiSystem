@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Participant Journey - DTBi{% endblock %}
+{% block page_title %}Participant Journey{% endblock %}
+{% block content %}
+<div class="welcome-banner"><h2>Connect early support to long-term outcomes</h2><p>Track people from BUNI community programmes through DTBi incubation and growth. Mentor sessions and funding remain in their existing records; link session follow-ups here and capture other support and dated outcomes.</p></div>
+
+<div class="stats-grid mt-20">
+    <div class="stat-card blue"><div class="stat-value">{{ counts.active }}</div><div class="stat-label">Active participant journeys</div></div>
+    <div class="stat-card"><div class="stat-value">{{ counts.followups_due }}</div><div class="stat-label">Follow-ups due</div></div>
+    <div class="stat-card"><div class="stat-value">{{ counts.support_this_month }}</div><div class="stat-label">Support records this month</div></div>
+</div>
+
+<section class="card mt-20"><div class="card-header"><h3>Find participants</h3></div><div class="card-body">
+    <form method="get" class="journey-filter-form"><input class="form-input" type="search" name="q" value="{{ search }}" placeholder="Participant, startup, email, or cohort"><select class="filter-select" name="stage"><option value="">All stages</option>{% for value,label in stage_choices %}<option value="{{ value }}" {% if stage_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><select class="filter-select" name="status"><option value="">All statuses</option>{% for value,label in journey_status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><button class="btn btn-outline" type="submit">Search</button></form>
+    <div class="table-wrap"><table><thead><tr><th>Participant</th><th>Startup</th><th>Current stage</th><th>Status</th><th>Cohort</th><th>Owner</th><th>Started</th><th>Record</th></tr></thead><tbody>
+    {% for journey in journeys %}<tr><td>{{ journey.participant_name }}{% if journey.email %}<br><small>{{ journey.email }}</small>{% endif %}</td><td>{{ journey.startup.name|default:'Not linked yet' }}</td><td>{{ journey.get_current_stage_display }}</td><td>{{ journey.get_status_display }}</td><td>{{ journey.cohort|default:'-' }}</td><td>{{ journey.assigned_to.get_full_name|default:journey.assigned_to.username|default:'-' }}</td><td>{{ journey.started_on }}</td><td><a class="btn btn-outline btn-sm" href="?participant={{ journey.pk }}">Open</a></td></tr>{% empty %}<tr><td colspan="8">No participant journeys match these filters. Create the first record below.</td></tr>{% endfor %}
+    </tbody></table></div>{% include "partials/pagination.html" %}
+</div></section>
+
+<div class="journey-workspace mt-20">
+    <section class="card"><div class="card-header"><h3>{% if selected %}Update {{ selected.participant_name }}{% else %}Start a participant record{% endif %}</h3></div><div class="card-body">
+        <p class="text-muted">A startup link is optional. You can add one later as the participant progresses.</p>
+        <form method="post" class="settings-form-grid">{% csrf_token %}<input type="hidden" name="action" value="{% if selected %}save_journey{% else %}new_journey{% endif %}">{% if selected %}<input type="hidden" name="journey_id" value="{{ selected.pk }}">{% endif %}
+            {% include "partials/form_errors.html" with bound_form=journey_form %}
+            {% for field in journey_form %}<div class="settings-field{% if field.name == 'internal_notes' or field.name == 'change_note' %} settings-field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+            <div class="settings-field-wide"><button class="btn btn-primary" type="submit">Save journey</button></div>
+        </form>
+    </div></section>
+
+    {% if selected %}
+    <section class="card"><div class="card-header"><h3>Record delivered support</h3></div><div class="card-body">
+        <form method="post" class="settings-form-grid">{% csrf_token %}<input type="hidden" name="action" value="add_support"><input type="hidden" name="participant_id" value="{{ selected.pk }}">{% include "partials/form_errors.html" with bound_form=support_form %}
+            {% for field in support_form %}<div class="settings-field{% if field.name == 'notes' %} settings-field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+            <div class="settings-field-wide"><button class="btn btn-primary" type="submit">Add support record</button></div>
+        </form>
+    </div></section>
+
+    <section class="card"><div class="card-header"><h3>Plan a follow-up</h3></div><div class="card-body">
+        <form method="post" class="settings-form-grid">{% csrf_token %}<input type="hidden" name="action" value="add_followup"><input type="hidden" name="participant_id" value="{{ selected.pk }}">{% include "partials/form_errors.html" with bound_form=followup_form %}
+            {% for field in followup_form %}<div class="settings-field{% if field.name == 'notes' %} settings-field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+            <div class="settings-field-wide"><button class="btn btn-primary" type="submit">Add follow-up</button></div>
+        </form>
+    </div></section>
+
+    <section class="card"><div class="card-header"><h3>Record an outcome snapshot</h3></div><div class="card-body">
+        <p class="text-muted">Record jobs, monthly revenue, customers/users, and milestones as of a date. Funding is already tracked separately.</p>
+        <form method="post" class="settings-form-grid">{% csrf_token %}<input type="hidden" name="action" value="add_outcome"><input type="hidden" name="participant_id" value="{{ selected.pk }}">{% include "partials/form_errors.html" with bound_form=outcome_form %}
+            {% for field in outcome_form %}<div class="settings-field{% if field.name == 'milestone' or field.name == 'notes' %} settings-field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+            <div class="settings-field-wide"><button class="btn btn-primary" type="submit">Save outcome snapshot</button></div>
+        </form>
+    </div></section>
+    {% endif %}
+</div>
+
+{% if selected %}
+<section class="card mt-20"><div class="card-header"><h3>Progress history</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>When</th><th>Stage</th><th>Status</th><th>Recorded by</th><th>Note</th></tr></thead><tbody>{% for item in journey_history %}<tr><td>{{ item.changed_at|date:'Y-m-d H:i' }}</td><td>{% if item.old_stage %}{{ item.old_stage|title }} &rarr; {% endif %}{{ item.get_new_stage_display }}</td><td>{% if item.old_status %}{{ item.old_status|title }} &rarr; {% endif %}{{ item.get_new_status_display }}</td><td>{{ item.changed_by.get_full_name|default:item.changed_by.username|default:'-' }}</td><td>{{ item.note|default:'-' }}</td></tr>{% empty %}<tr><td colspan="5">No stage changes recorded.</td></tr>{% endfor %}</tbody></table></div></div></section>
+
+<div class="grid-2 mt-20">
+    <section class="card"><div class="card-header"><h3>Support delivered</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Support</th><th>Provider</th><th>Hours</th></tr></thead><tbody>{% for item in support_records %}<tr><td>{{ item.delivered_on }}</td><td>{{ item.get_support_type_display }}<br>{{ item.title }}</td><td>{{ item.provider|default:'-' }}</td><td>{{ item.hours|default:'-' }}</td></tr>{% empty %}<tr><td colspan="4">No additional support records yet. Mentor sessions remain in Mentor Sessions.</td></tr>{% endfor %}</tbody></table></div></div></section>
+    <section class="card"><div class="card-header"><h3>Follow-up actions</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Action</th><th>Due</th><th>Assigned</th><th>Status</th></tr></thead><tbody>{% for item in followups %}<tr><td>{{ item.action }}{% if item.mentor_session %}<br><small>Session: {{ item.mentor_session.date }} · {{ item.mentor_session.mentor.name }}</small>{% elif item.mentor %}<br><small>Mentor: {{ item.mentor.name }}</small>{% endif %}</td><td>{{ item.due_date|default:'-' }}</td><td>{{ item.assigned_to.get_full_name|default:item.assigned_to.username|default:'-' }}</td><td><form method="post" class="inline-status-form">{% csrf_token %}<input type="hidden" name="action" value="update_followup"><input type="hidden" name="participant_id" value="{{ selected.pk }}"><input type="hidden" name="followup_id" value="{{ item.pk }}"><select class="form-select" name="status">{% for value,label in followup_status_choices %}<option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><button class="btn btn-outline btn-sm" type="submit">Save</button></form></td></tr>{% empty %}<tr><td colspan="4">No follow-ups yet.</td></tr>{% endfor %}</tbody></table></div></div></section>
+    <section class="card"><div class="card-header"><h3>Outcome snapshots</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>As of</th><th>Jobs</th><th>Monthly revenue</th><th>Customers/users</th><th>Milestone</th></tr></thead><tbody>{% for item in outcomes %}<tr><td>{{ item.recorded_on }}</td><td>{{ item.full_time_jobs }} full-time<br>{{ item.part_time_jobs }} part-time</td><td>{% if item.monthly_revenue != None %}{{ item.revenue_currency }} {{ item.monthly_revenue }}{% else %}-{% endif %}</td><td>{{ item.customers_or_users|default:'-' }}</td><td>{{ item.milestone|default:'-' }}</td></tr>{% empty %}<tr><td colspan="5">No outcome snapshots yet.</td></tr>{% endfor %}</tbody></table></div></div></section>
+</div>
+{% endif %}
+{% endblock %}

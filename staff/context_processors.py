@@ -18,3 +18,11 @@ def admin_page_visit_alerts(request):
         if user.is_superuser or UserProfile.objects.filter(user=user, user_type='admin').exists():
             unread = PageVisit.objects.filter(is_read=False).count()
     return {'unread_page_visit_count': unread}
+
+
+def user_theme(request):
+    user = getattr(request, 'user', None)
+    theme = 'light'
+    if user and user.is_authenticated:
+        theme = UserProfile.objects.filter(user=user).values_list('theme', flat=True).first() or 'light'
+    return {'ui_theme': theme}

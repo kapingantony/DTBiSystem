@@ -33,6 +33,10 @@ urlpatterns = [
     path('data/imports/', data_views.data_import, name='data_import'),
     path('data/reports/', data_views.data_reports, name='data_reports'),
     path('data/page-visits/', data_views.page_visit_admin, name='page_visit_admin'),
+    path('data/partnerships/', data_views.partnership_inbox, name='partnership_inbox'),
+    path('mentor-sessions/', data_views.mentor_sessions, name='mentor_sessions'),
+    path('data/participant-journey/', data_views.participant_journey, name='participant_journey'),
+    path('mentor-sessions/<int:pk>/calendar.ics', data_views.mentor_session_ical, name='mentor_session_ical'),
     path('mentors/<int:pk>/', data_views.mentor_profile, name='mentor_profile'),
     path('investors/<int:pk>/', data_views.investor_profile, name='investor_profile'),
 ]

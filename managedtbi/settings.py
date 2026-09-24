@@ -67,6 +67,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'staff.context_processors.people_counts',
                 'staff.context_processors.admin_page_visit_alerts',
+                'staff.context_processors.user_theme',
             ],
         },
     },

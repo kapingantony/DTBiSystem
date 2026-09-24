@@ -17,36 +17,18 @@
 </style>
 
 <div class="filter-bar">
-    <div class="search-box">
-        <i class="fas fa-search"></i>
-        <input type="text" placeholder="Search startups..." id="startupSearch">
-    </div>
-    <select class="filter-select" id="industryFilter">
-        <option value="">All Industries</option>
-        <option>Agriculture</option>
-        <option>Fintech</option>
-        <option>Healthcare</option>
-        <option>Education</option>
-        <option>Logistics</option>
-        <option>Energy</option>
-        <option>Cybersecurity</option>
-        <option>Food & Beverage</option>
-    </select>
-    <select class="filter-select" id="statusFilter">
-        <option value="">All Status</option>
-        <option value="active">Active</option>
-        <option value="pending">Pending</option>
-        <option value="inactive">Inactive</option>
-    </select>
+    <form method="get" class="filter-bar">
+    <div class="search-box"><i class="fas fa-search"></i><input type="search" placeholder="Name, industry, or description" id="startupSearch" name="q" value="{{ search_query }}"></div>
+    <select class="filter-select" name="industry"><option value="">All Industries</option>{% for industry in industries %}<option value="{{ industry }}" {% if industry_filter == industry %}selected{% endif %}>{{ industry }}</option>{% endfor %}</select>
+    <select class="filter-select" name="status"><option value="">All Status</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <select class="filter-select" name="type"><option value="">All Types</option><option value="public" {% if filter_type == 'public' %}selected{% endif %}>Public</option><option value="individual" {% if filter_type == 'individual' %}selected{% endif %}>Individual</option></select>
+    <button class="btn btn-outline" type="submit">Search &amp; filter</button>
+    </form>
     {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
     {% if user.profile.is_admin %}<a href="{% url 'admin:staff_startup_changelist' %}" class="btn btn-outline"><i class="fas fa-shield-halved"></i> Manage Startups</a>{% endif %}
 </div>
 
-<div class="startup-type-filter">
-    <a href="?type=" class="type-chip active" data-type="all">All</a>
-    <a href="?type=public" class="type-chip" data-type="public">Public</a>
-    <a href="?type=individual" class="type-chip" data-type="individual">Individual</a>
-</div>
+<div class="filter-bar"><span>Showing {{ page_obj.paginator.count }} matching startups.</span>{% if search_query or industry_filter or status_filter or filter_type %}<a class="btn btn-outline btn-sm" href="{% url 'staff:startups' %}">Clear filters</a>{% endif %}</div>
 
 <div class="card">
     <div class="card-body flush">
@@ -90,41 +72,5 @@
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Type filter chips
-    var urlParams = new URLSearchParams(window.location.search);
-    var currentType = urlParams.get('type') || 'all';
-    document.querySelectorAll('.type-chip').forEach(function(chip) {
-        chip.classList.remove('active');
-        if (chip.dataset.type === currentType) chip.classList.add('active');
-    });
-
-    // Search filter
-    var searchInput = document.getElementById('startupSearch');
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            var q = this.value.toLowerCase();
-            document.querySelectorAll('#startupTable tbody tr').forEach(function(row) {
-                var text = row.textContent.toLowerCase();
-                row.style.display = text.includes(q) ? '' : 'none';
-            });
-        });
-    }
-
-    // Status filter
-    var statusFilter = document.getElementById('statusFilter');
-    if (statusFilter) {
-        statusFilter.addEventListener('change', function() {
-            var val = this.value.toLowerCase();
-            document.querySelectorAll('#startupTable tbody tr').forEach(function(row) {
-                if (!val) { row.style.display = ''; return; }
-                var statusCell = row.querySelector('.status-pill');
-                row.style.display = (statusCell && statusCell.classList.contains(val)) ? '' : 'none';
-            });
-        });
-    }
-});
-</script>
+{% include "partials/pagination.html" %}
 {% endblock %}

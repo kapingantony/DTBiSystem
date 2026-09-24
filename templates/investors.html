@@ -6,9 +6,10 @@
 {% block content %}
 <div class="investors-page">
     <div class="filter-bar">
-        <div><strong>{{ investors|length }}</strong> active investors in the system</div>
+        <div><strong>{{ page_obj.paginator.count }}</strong> matching investors of {{ investor_count }} active</div>
         {% if user.profile.is_admin %}<a class="btn btn-primary" href="{% url 'admin:staff_investor_add' %}"><i class="fas fa-plus"></i> Add Investor</a>{% endif %}
     </div>
+    <form method="get" class="filter-bar" role="search"><input class="form-input" type="search" name="q" value="{{ search_query }}" placeholder="Search name, organization, investment focus, email"><select class="filter-select" name="interest"><option value="">All investment interests</option>{% for interest in interests %}<option value="{{ interest }}" {% if interest_filter == interest %}selected{% endif %}>{{ interest|truncatechars:70 }}</option>{% endfor %}</select><button class="btn btn-outline" type="submit">Search</button>{% if search_query or interest_filter %}<a class="btn btn-outline" href="{% url 'staff:investors' %}">Clear</a>{% endif %}</form>
     <div class="person-grid">
         {% for investor in investors %}
         <a href="{% url 'staff:investor_profile' pk=investor.pk %}" class="person-card" style="text-decoration:none;color:inherit;">
@@ -22,5 +23,6 @@
         </a>
         {% empty %}<p class="overview-empty">No investor records have been added yet.</p>{% endfor %}
     </div>
+    {% include "partials/pagination.html" %}
 </div>
 {% endblock %}

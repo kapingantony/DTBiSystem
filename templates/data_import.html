@@ -14,6 +14,7 @@
 {% if batch.status == 'preview' %}
 <form method="post">{% csrf_token %}<input type="hidden" name="batch_id" value="{{ batch.pk }}">
 <p>Match each system field to a column. Unmapped fields are left unchanged or use normal defaults for new records.</p>
+{% if batch.dataset == 'participant' %}<p class="text-muted">Participant rows match by email or by name and cohort. A startup is linked only when its name matches exactly one existing startup. Stage and status cells may use the displayed labels or their system values.</p>{% endif %}
 <div class="settings-form-grid">
 {% for item in mapping_fields %}<div class="form-group"><label for="map_{{ item.key }}">{{ item.label }}</label><select class="form-select" id="map_{{ item.key }}" name="map_{{ item.key }}"><option value="">Skip this field</option>{% for header in headers %}<option value="{{ header }}" {% if item.selected == header %}selected{% endif %}>{{ header }}</option>{% endfor %}</select></div>{% endfor %}
 </div>
