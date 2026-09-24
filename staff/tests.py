@@ -91,7 +91,9 @@ class StartupCreationTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username='jane', password='secret1234', email='jane@example.com'
         )
-        self.profile = UserProfile.objects.create(user=self.user, user_type='public')
+        self.profile, _ = UserProfile.objects.get_or_create(user=self.user, defaults={'user_type': 'public'})
+        self.profile.user_type = 'public'
+        self.profile.save(update_fields=['user_type'])
         self.client.force_login(self.user)
 
     def test_anonymous_visitor_is_sent_to_login(self):
@@ -145,7 +147,9 @@ class StartupCreationTests(TestCase):
             email='staff@example.com',
             is_staff=True,
         )
-        UserProfile.objects.create(user=staff_user, user_type='staff')
+        staff_profile, _ = UserProfile.objects.get_or_create(user=staff_user, defaults={'user_type': 'staff'})
+        staff_profile.user_type = 'staff'
+        staff_profile.save(update_fields=['user_type'])
 
         response = self.client.post(reverse('staff:user_login'), {
             'username': 'staffuser',
@@ -205,7 +209,9 @@ class StartupCreationTests(TestCase):
     def test_duplicate_names_get_unique_slugs(self):
         self.client.post(reverse('staff:startup_create'), startup_payload('Same Name'))
         john = get_user_model().objects.create_user(username='john', password='secret1234')
-        UserProfile.objects.create(user=john, user_type='public')
+        john_profile, _ = UserProfile.objects.get_or_create(user=john, defaults={'user_type': 'public'})
+        john_profile.user_type = 'public'
+        john_profile.save(update_fields=['user_type'])
         self.client.force_login(john)
 
         self.client.post(reverse('staff:startup_create'), startup_payload('Same Name'))
@@ -235,7 +241,9 @@ class StartupCreationTests(TestCase):
         stranger = get_user_model().objects.create_user(
             username='stranger', password='secret1234'
         )
-        UserProfile.objects.create(user=stranger, user_type='public')
+        stranger_profile, _ = UserProfile.objects.get_or_create(user=stranger, defaults={'user_type': 'public'})
+        stranger_profile.user_type = 'public'
+        stranger_profile.save(update_fields=['user_type'])
         self.client.force_login(stranger)
 
         view = self.client.get(reverse('staff:startup_profile', kwargs={'slug': startup.slug}))
@@ -255,7 +263,9 @@ class PageRenderingTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username='render', password='secret1234'
         )
-        self.profile = UserProfile.objects.create(user=self.user, user_type='public')
+        self.profile, _ = UserProfile.objects.get_or_create(user=self.user, defaults={'user_type': 'public'})
+        self.profile.user_type = 'public'
+        self.profile.save(update_fields=['user_type'])
 
     def test_landing_page_is_public(self):
         response = self.client.get('/')

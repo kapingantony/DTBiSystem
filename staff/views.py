@@ -117,7 +117,7 @@ def startups(request):
 
 @require_http_methods(["GET", "POST"])
 def user_login(request):
-    """Handle login according to the account's stored role and permissions."""
+    """Handle login according to the stored user role and Django permission flags."""
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -134,26 +134,33 @@ def user_login(request):
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
 
-        if requested_type == 'admin':
-            if not (user.is_superuser or (user.is_staff and profile.user_type == 'admin')):
-                messages.error(request, 'This account is not authorized for Admin access.')
-                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
-        elif requested_type == 'staff':
-            if not (user.is_staff and profile.user_type == 'staff'):
-                messages.error(request, 'This account is not authorized for Staff access.')
-                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+        if user.is_superuser:
+            profile.user_type = 'admin'
+            user.is_staff = True
+            user.save(update_fields=['is_staff'])
+        elif user.is_staff:
+            profile.user_type = 'staff'
         elif requested_type in ('public', 'individual'):
-            if profile.user_type != requested_type:
-                messages.error(request, 'This account is not registered as a startup user.')
-                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
-            if user.is_staff or user.is_superuser:
-                messages.error(request, 'Startup accounts cannot sign in as admin or staff.')
-                return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+            profile.user_type = requested_type
+        else:
+            profile.user_type = 'public'
+
+        profile.save(update_fields=['user_type'])
+
+        if requested_type == 'admin' and not user.is_superuser:
+            messages.error(request, 'This account is not authorized for Admin access.')
+            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+        if requested_type == 'staff' and profile.user_type != 'staff':
+            messages.error(request, 'This account is not authorized for Staff access.')
+            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+        if requested_type in ('public', 'individual') and profile.user_type not in ('public', 'individual'):
+            messages.error(request, 'This account is not registered as a startup user.')
+            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
 
         login(request, user)
         profile.login_count += 1
         profile.last_login_ip = request.META.get('REMOTE_ADDR', '0.0.0.0')
-        profile.save(update_fields=['user_type', 'login_count', 'last_login_ip'])
+        profile.save(update_fields=['login_count', 'last_login_ip'])
 
         if profile.user_type == 'admin':
             return redirect('staff:dashboard')
@@ -263,7 +270,9 @@ def register(request):
                 password=password,
                 is_staff=False,
             )
-            UserProfile.objects.create(user=user, user_type=user_type)
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.user_type = user_type
+            profile.save(update_fields=['user_type'])
             messages.success(request, 'Account created successfully. Please log in with your startup role.')
             return redirect('staff:user_login')
 
