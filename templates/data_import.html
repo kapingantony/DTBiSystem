@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Bulk Import - DTBi{% endblock %}
+{% block page_title %}Bulk Import{% endblock %}
+{% block content %}
+<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:data_hub' %}"><i class="fas fa-arrow-left"></i> Data Hub</a><span>Maximum upload size: 20 MB. Up to 20,000 rows per file.</span></div>
+<section class="card mt-20"><div class="card-header"><h3>1. Upload a file</h3></div><div class="card-body">
+<form method="post" enctype="multipart/form-data" class="auth-form">{% csrf_token %}<input type="hidden" name="action" value="upload">
+<div class="form-group"><label for="dataset">Record type</label><select class="form-select" id="dataset" name="dataset" required><option value="">Choose records</option>{% for value,label in datasets %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+<div class="form-group"><label for="file">Excel, CSV, or text based PDF</label><input class="form-input" type="file" name="file" id="file" accept=".xlsx,.csv,.pdf" required></div>
+<button class="btn btn-primary" type="submit">Upload and preview</button></form></div></section>
+{% if batch %}
+<section class="card mt-20"><div class="card-header"><h3>2. Review import</h3></div><div class="card-body">
+<p><strong>{{ batch.original_filename }}</strong> &middot; {{ batch.get_dataset_display }} &middot; {{ batch.total_rows }} data rows &middot; {{ batch.get_status_display }}</p>
+{% if batch.status == 'preview' %}
+<form method="post">{% csrf_token %}<input type="hidden" name="batch_id" value="{{ batch.pk }}">
+<p>Match each system field to a column. Unmapped fields are left unchanged or use normal defaults for new records.</p>
+<div class="settings-form-grid">
+{% for item in mapping_fields %}<div class="form-group"><label for="map_{{ item.key }}">{{ item.label }}</label><select class="form-select" id="map_{{ item.key }}" name="map_{{ item.key }}"><option value="">Skip this field</option>{% for header in headers %}<option value="{{ header }}" {% if item.selected == header %}selected{% endif %}>{{ header }}</option>{% endfor %}</select></div>{% endfor %}
+</div>
+<button class="btn btn-outline" type="submit" name="action" value="check">Check rows</button>
+{% if preview_analysis %}<button class="btn btn-primary" type="submit" name="action" value="confirm" {% if not preview_analysis.creates and not preview_analysis.updates %}disabled{% endif %}>Import valid rows</button>{% endif %}
+</form>
+{% if preview_analysis %}<div class="stats-grid mt-20"><div class="stat-card"><div class="stat-value">{{ preview_analysis.total }}</div><div class="stat-label">Rows checked</div></div><div class="stat-card blue"><div class="stat-value">{{ preview_analysis.creates }}</div><div class="stat-label">Would create</div></div><div class="stat-card"><div class="stat-value">{{ preview_analysis.updates }}</div><div class="stat-label">Would update</div></div><div class="stat-card"><div class="stat-value">{{ preview_analysis.issues }}</div><div class="stat-label">Rows with issues</div></div></div>
+{% if preview_analysis.issues %}<h4 class="mt-20">Rows to review</h4><p>Only valid rows will be imported. <a href="?errors={{ batch.pk }}">Download all preview issues as CSV</a>. Showing up to 30 issues here.</p><div class="table-wrap"><table><thead><tr><th>File row</th><th>Issue</th></tr></thead><tbody>{% for row in preview_issue_rows %}<tr><td>{{ row.row }}</td><td>{{ row.message }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}{% endif %}
+{% elif batch.status == 'completed' %}<div class="stats-grid"><div class="stat-card"><div class="stat-value">{{ batch.created_count }}</div><div class="stat-label">Created</div></div><div class="stat-card"><div class="stat-value">{{ batch.updated_count }}</div><div class="stat-label">Updated</div></div><div class="stat-card"><div class="stat-value">{{ batch.skipped_count }}</div><div class="stat-label">Skipped</div></div></div>{% endif %}
+{% if headers and batch.status == 'preview' %}<h4 class="mt-20">Sample rows</h4><div class="table-wrap"><table><thead><tr>{% for header in headers %}<th>{{ header }}</th>{% endfor %}</thead><tbody>{% for row in sample_rows %}<tr>{% for cell in row %}<td>{{ cell|default:"-"|truncatechars:80 }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if batch.row_errors and batch.status != 'preview' %}<h4 class="mt-20">Rows needing attention</h4><p><a href="?errors={{ batch.pk }}">Download row issues as CSV</a></p><div class="table-wrap"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>{% for error in batch.row_errors %}<tr><td>{{ error.row }}</td><td>{{ error.error }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+</div></section>{% endif %}
+{% endblock %}

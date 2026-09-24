@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ investor }} - Investor{% endblock %}
+{% block page_title %}Investor Profile{% endblock %}
+{% block content %}
+<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:investors' %}"><i class="fas fa-arrow-left"></i> Investors</a></div>
+<section class="card mt-20"><div class="card-header"><h3>{{ investor }}</h3></div><div class="card-body"><p>{{ investor.organization|default:'Investor' }}</p>{% if investor.investment_interest %}<p>Investment interest: {{ investor.investment_interest }}</p>{% endif %}{% if investor.description %}<p>{{ investor.description }}</p>{% endif %}{% if investor.email %}<p>Email: {{ investor.email }}</p>{% endif %}{% if investor.website %}<p><a href="{{ investor.website }}">{{ investor.website }}</a></p>{% endif %}</div></section>
+<section class="card mt-20"><div class="card-header"><h3>Funding linked to this investor</h3></div><div class="card-body flush"><div class="table-wrap"><table><thead><tr><th>Startup</th><th>Recorded</th><th>Funding date</th><th>Status</th><th>Amount</th><th>Currency</th></tr></thead><tbody>{% for funding in fundings %}<tr><td>{{ funding.startup.name }}</td><td>{{ funding.created_at|date:'Y-m-d' }}</td><td>{{ funding.date_received|default:'-' }}</td><td>{{ funding.status }}</td><td>{{ funding.amount }}</td><td>{{ funding.currency }}</td></tr>{% empty %}<tr><td colspan="6">No funding records are linked to this investor.</td></tr>{% endfor %}</tbody></table></div></div></section>
+{% endblock %}

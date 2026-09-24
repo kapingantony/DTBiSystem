@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.text import slugify
 from django.urls import reverse
 from django.contrib.auth.models import User
+from .storage import PrivateImportStorage
 
 
 class Startup(models.Model):
@@ -153,6 +154,24 @@ class Investor(models.Model):
         return self.organization or self.name
 
 
+class MentorEngagement(models.Model):
+    """A dated mentoring activity that can be included in programme reports."""
+    mentor = models.ForeignKey(Mentor, on_delete=models.PROTECT, related_name='engagements')
+    startup = models.ForeignKey(Startup, on_delete=models.CASCADE, related_name='mentor_engagements')
+    date = models.DateField()
+    hours = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    topics = models.TextField(blank=True)
+    outcome = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', 'mentor__name']
+        indexes = [models.Index(fields=['date'])]
+
+    def __str__(self):
+        return f'{self.mentor} — {self.startup} ({self.date})'
+
+
 class Opportunity(models.Model):
     TYPE_CHOICES = [
         ('funding', 'Funding'),
@@ -200,8 +219,12 @@ class Funding(models.Model):
     ]
 
     startup = models.ForeignKey(Startup, on_delete=models.CASCADE, related_name='fundings')
+    investor = models.ForeignKey(
+        Investor, on_delete=models.SET_NULL, null=True, blank=True, related_name='fundings'
+    )
     source = models.CharField(max_length=255, help_text='Investor or fund name')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='USD', help_text='ISO currency code')
     funding_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='seed')
     date_received = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='committed')
@@ -414,6 +437,82 @@ class SiteVisit(models.Model):
 
     def __str__(self):
         return f"Visitor {self.session_key}"
+
+
+class PageVisit(models.Model):
+    """One visit per browser session, entity, and local calendar day."""
+    PAGE_TYPES = [
+        ('startup', 'Startup'),
+        ('mentor', 'Mentor'),
+        ('investor', 'Investor'),
+    ]
+
+    page_type = models.CharField(max_length=20, choices=PAGE_TYPES)
+    object_key = models.CharField(max_length=100)
+    display_name = models.CharField(max_length=255)
+    session_key = models.CharField(max_length=40)
+    visitor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tracked_page_visits'
+    )
+    visit_date = models.DateField()
+    visited_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-visited_at']
+        constraints = [models.UniqueConstraint(
+            fields=['page_type', 'object_key', 'session_key', 'visit_date'],
+            name='uniq_daily_entity_page_visit',
+        )]
+        indexes = [models.Index(fields=['page_type', 'visited_at'])]
+
+    def __str__(self):
+        return f'{self.get_page_type_display()} visit: {self.display_name}'
+
+
+class StartupStatusHistory(models.Model):
+    """Status snapshots recorded from this release onward; older history isn't inferred."""
+    startup = models.ForeignKey(Startup, on_delete=models.CASCADE, related_name='status_history')
+    status = models.CharField(max_length=20, choices=Startup.STATUS_CHOICES)
+    contract_status = models.CharField(max_length=20, choices=Startup.CONTRACT_CHOICES, blank=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-recorded_at']
+        indexes = [models.Index(fields=['recorded_at', 'status'])]
+
+    def __str__(self):
+        return f'{self.startup}: {self.get_status_display()}'
+
+
+class DataImportBatch(models.Model):
+    DATASETS = [
+        ('startup', 'Startups'),
+        ('mentor', 'Mentors'),
+        ('investor', 'Investors'),
+    ]
+    STATUSES = [('preview', 'Ready to import'), ('completed', 'Completed'), ('failed', 'Failed')]
+
+    dataset = models.CharField(max_length=20, choices=DATASETS)
+    file = models.FileField(upload_to='imports/%Y/%m/', storage=PrivateImportStorage())
+    original_filename = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='data_imports')
+    status = models.CharField(max_length=20, choices=STATUSES, default='preview')
+    headers = models.JSONField(default=list, blank=True)
+    field_mapping = models.JSONField(default=dict, blank=True)
+    total_rows = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    row_errors = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_dataset_display()} import: {self.original_filename}'
 
 
 class Partnership(models.Model):

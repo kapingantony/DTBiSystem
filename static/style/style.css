@@ -1218,6 +1218,10 @@ table tbody tr:last-child td { border-bottom: none; }
 .sidebar-overlay.active { display: block; }
 
 /* --- Utilities --- */
+.system-messages { margin-bottom: 14px; }
+.system-message { padding: 11px 14px; border-radius: var(--radius-sm); color: #247b68; background: #e8f6f0; font-size: 0.85rem; margin-bottom: 8px; }
+.system-message.error { color: #8b3030; background: #fff0ef; }
+.system-message.warning { color: #75530c; background: #fff8df; }
 .mt-20 { margin-top: 20px; }
 .mb-20 { margin-bottom: 20px; }
 .mb-28 { margin-bottom: 28px; }

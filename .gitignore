@@ -8,6 +8,7 @@ __pycache__/
 # Django local files
 *.log
 media/
+private_imports/
 
 # Local development settings
 .env

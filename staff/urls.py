@@ -2,6 +2,7 @@ from django.urls import path
 from django.contrib.auth.views import PasswordChangeView
 from django.urls import reverse_lazy
 from . import views
+from . import data_views
 
 app_name = 'staff'
 
@@ -28,4 +29,10 @@ urlpatterns = [
     path('mentors/', views.mentors, name='mentors'),
     path('investors/', views.investors, name='investors'),
     path('staff/', views.staff_list, name='staff_list'),
+    path('data/', data_views.data_hub, name='data_hub'),
+    path('data/imports/', data_views.data_import, name='data_import'),
+    path('data/reports/', data_views.data_reports, name='data_reports'),
+    path('data/page-visits/', data_views.page_visit_admin, name='page_visit_admin'),
+    path('mentors/<int:pk>/', data_views.mentor_profile, name='mentor_profile'),
+    path('investors/<int:pk>/', data_views.investor_profile, name='investor_profile'),
 ]

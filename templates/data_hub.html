@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Data Hub - DTBi{% endblock %}
+{% block page_title %}Data Hub{% endblock %}
+{% block content %}
+<div class="welcome-banner">
+    <h2>Programme data and reporting</h2>
+    <p>Import records safely, review page interest, and download period reports.</p>
+</div>
+<div class="stats-grid mt-20">
+    <div class="stat-card blue"><div class="stat-value">{{ unread_visits }}</div><div class="stat-label">Unread page visits{% if is_admin %} <a href="{% url 'staff:page_visit_admin' %}">Review</a>{% endif %}</div></div>
+    <div class="stat-card"><div class="stat-value">{{ recent_imports|length }}</div><div class="stat-label">Recent import batches</div></div>
+</div>
+<div class="grid-2 mt-20">
+    <section class="card"><div class="card-header"><h3>Bulk data import</h3></div><div class="card-body"><p>Upload Excel, CSV, or a text based PDF. Preview and map columns before committing any records.</p><a class="btn btn-primary" href="{% url 'staff:data_import' %}">Open import tool</a></div></section>
+    <section class="card"><div class="card-header"><h3>Programme reports</h3></div><div class="card-body"><p>Review startups, funding, mentorship, KPIs, and page interest for a selected reporting period.</p><a class="btn btn-primary" href="{% url 'staff:data_reports' %}">Build a report</a></div></section>
+</div>
+<section class="card mt-20"><div class="card-header"><h3>Recent import batches</h3></div><div class="card-body flush"><div class="table-wrap"><table><thead><tr><th>File</th><th>Data</th><th>Status</th><th>Created</th><th>Updated</th><th>Skipped</th><th>Uploaded by</th></tr></thead><tbody>
+{% for batch in recent_imports %}<tr><td>{{ batch.original_filename }}</td><td>{{ batch.get_dataset_display }}</td><td>{{ batch.get_status_display }}</td><td>{{ batch.created_count }}</td><td>{{ batch.updated_count }}</td><td>{{ batch.skipped_count }}</td><td>{{ batch.uploaded_by|default:"-" }}</td></tr>{% empty %}<tr><td colspan="7">No imports yet.</td></tr>{% endfor %}
+</tbody></table></div></div></section>
+{% endblock %}

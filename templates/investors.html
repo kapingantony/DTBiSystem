@@ -11,7 +11,7 @@
     </div>
     <div class="person-grid">
         {% for investor in investors %}
-        <article class="person-card">
+        <a href="{% url 'staff:investor_profile' pk=investor.pk %}" class="person-card" style="text-decoration:none;color:inherit;">
             <div class="person-card-top"><div class="person-avatar gold">{{ investor.name|slice:":2"|upper }}</div><div><div class="person-name">{{ investor }}</div><div class="person-role">{{ investor.organization|default:"Investor" }}</div></div></div>
             <div class="person-details">
                 {% if investor.email %}<div class="person-detail"><i class="fas fa-envelope"></i> {{ investor.email }}</div>{% endif %}
@@ -19,7 +19,7 @@
                 {% if investor.investment_interest %}<div class="person-detail"><i class="fas fa-bullseye"></i> {{ investor.investment_interest }}</div>{% endif %}
             </div>
             {% if investor.description %}<div class="person-tags"><span class="tag">{{ investor.description|truncatechars:100 }}</span></div>{% endif %}
-        </article>
+        </a>
         {% empty %}<p class="overview-empty">No investor records have been added yet.</p>{% endfor %}
     </div>
 </div>

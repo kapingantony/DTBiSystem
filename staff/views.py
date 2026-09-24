@@ -20,6 +20,7 @@ from .forms import (
     ServiceOfferedFormSet, PartnershipForm, AccountForm,
     ProfilePreferencesForm
 )
+from .data_views import record_page_visit
 
 User = get_user_model()
 
@@ -188,7 +189,7 @@ def user_logout(request):
     """Handle user logout"""
     logout(request)
     messages.success(request, 'You have been logged out.')
-    return redirect('staff:dashboard')
+    return redirect('landing')
 
 
 @login_required
@@ -371,6 +372,8 @@ def startup_create(request):
 def startup_profile(request, slug):
     """Display and edit startup profile"""
     startup = get_object_or_404(Startup, slug=slug)
+    if request.method == 'GET':
+        record_page_visit(request, 'startup', startup.slug, startup.name)
     profile = get_profile(request.user)
 
     # Only the owner of the startup (or a hub admin) may change it.
@@ -453,10 +456,12 @@ def partnership_success(request):
 
 
 def mentors(request):
+    record_page_visit(request, 'mentor', 'directory', 'Mentor directory')
     return render(request, 'mentors.html', {'mentors': Mentor.objects.filter(is_active=True)})
 
 
 def investors(request):
+    record_page_visit(request, 'investor', 'directory', 'Investor directory')
     return render(request, 'investors.html', {'investors': Investor.objects.filter(status='active')})
 
 

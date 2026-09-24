@@ -74,6 +74,13 @@
                 </div>
 
                 <div class="nav-section">Management</div>
+                {% if user.is_authenticated and user.profile.is_staff_role %}
+                <div class="nav-item">
+                    <a href="{% url 'staff:data_hub' %}" class="nav-link {% if request.resolver_match.url_name == 'data_hub' or request.resolver_match.url_name == 'data_import' or request.resolver_match.url_name == 'data_reports' or request.resolver_match.url_name == 'page_visit_admin' %}active{% endif %}">
+                        <i class="fas fa-database"></i><span>Data Hub</span>
+                    </a>
+                </div>
+                {% endif %}
                 {% if user.is_authenticated and user.profile.is_admin %}
                 <div class="nav-item">
                     <a href="{% url 'staff:staff_list' %}" class="nav-link {% if request.resolver_match.url_name == 'staff_list' %}active{% endif %}">
@@ -146,10 +153,12 @@
                             <span class="brand-logo brand-logo-fursa" aria-hidden="true"></span>
                         </a>
                     </div>
-                    <button class="topbar-btn" title="Notifications">
+                    {% if user.is_authenticated and user.profile.is_admin %}
+                    <a class="topbar-btn" title="Page visit notifications" href="{% url 'staff:page_visit_admin' %}" style="position:relative;">
                         <i class="fas fa-bell"></i>
-                        <span class="dot"></span>
-                    </button>
+                        {% if unread_page_visit_count %}<span class="dot" aria-label="{{ unread_page_visit_count }} unread visits"></span><span class="badge" style="position:absolute;top:-6px;right:-6px;">{{ unread_page_visit_count }}</span>{% endif %}
+                    </a>
+                    {% else %}<button class="topbar-btn" title="Notifications"><i class="fas fa-bell"></i></button>{% endif %}
                     <button class="topbar-btn" title="Messages">
                         <i class="fas fa-envelope"></i>
                     </button>
@@ -158,6 +167,7 @@
 
             <!-- Page Content -->
             <div class="page-content">
+                {% if messages %}<div class="system-messages">{% for message in messages %}<div class="system-message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
                 {% block content %}{% endblock %}
             </div>
         </div>

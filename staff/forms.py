@@ -129,10 +129,12 @@ OpportunityFormSet = forms.inlineformset_factory(
 class FundingForm(forms.ModelForm):
     class Meta:
         model = Funding
-        fields = ['source', 'amount', 'funding_type', 'date_received', 'status', 'notes']
+        fields = ['investor', 'source', 'amount', 'currency', 'funding_type', 'date_received', 'status', 'notes']
         widgets = {
+            'investor': forms.Select(attrs={'class': 'form-select'}),
             'source': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Investor or fund name'}),
             'amount': forms.NumberInput(attrs={'class': 'form-input', 'placeholder': '0.00'}),
+            'currency': forms.TextInput(attrs={'class': 'form-input', 'maxlength': 3, 'placeholder': 'USD'}),
             'funding_type': forms.Select(attrs={'class': 'form-select'}),
             'date_received': forms.DateInput(attrs={'class': 'form-input', 'type': 'date'}),
             'status': forms.Select(attrs={'class': 'form-select'}),

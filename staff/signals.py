@@ -1,11 +1,34 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.signals import user_logged_in
-from django.db.models.signals import post_migrate, post_save
+from django.db.models.signals import post_migrate, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import LoginNotification, RegistrationRate, UserProfile
+from .models import LoginNotification, RegistrationRate, Startup, StartupStatusHistory, UserProfile
 
 User = get_user_model()
+
+
+@receiver(pre_save, sender=Startup)
+def remember_startup_status(sender, instance, **kwargs):
+    instance._previous_status_snapshot = None
+    if instance.pk:
+        instance._previous_status_snapshot = sender.objects.filter(pk=instance.pk).values(
+            'status', 'contract_status'
+        ).first()
+
+
+@receiver(post_save, sender=Startup)
+def record_startup_status(sender, instance, created, **kwargs):
+    previous = getattr(instance, '_previous_status_snapshot', None)
+    if created or (previous and (
+        previous['status'] != instance.status
+        or previous['contract_status'] != instance.contract_status
+    )):
+        StartupStatusHistory.objects.create(
+            startup=instance,
+            status=instance.status,
+            contract_status=instance.contract_status,
+        )
 
 
 @receiver(user_logged_in)
