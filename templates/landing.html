@@ -7,26 +7,24 @@
 {% block content %}
 <main class="overview-page">
     <section class="overview-hero">
-        <div class="overview-hero-slideshow" aria-hidden="true">
-            <img class="is-active" src="{% static 'img/brands/staff.jpeg' %}" alt="">
-            <img src="{% static 'img/brands/staff1.jpeg' %}" alt="">
-            <img src="{% static 'img/brands/staff2.jpeg' %}" alt="">
-            <img src="{% static 'img/brands/staff3.jpeg' %}" alt="">
-        </div>
         <div class="overview-hero-copy">
-            <canvas class="ambient-binary ambient-binary-hero" aria-hidden="true"></canvas>
-            <span class="overview-eyebrow"><i class="fas fa-sparkles"></i> BUNI &amp; DTBi innovation ecosystem</span>
-            <h1>From early innovation to thriving ventures.</h1>
-            <p>Connect early support and incubation with the people, partnerships, resources, and measurable outcomes that help ventures grow.</p>
-            <div class="overview-actions">
-                <a href="{% url 'staff:register' %}" class="overview-primary-action"><i class="fas fa-arrow-right"></i> Get Started</a>
-                <a href="{% url 'staff:user_login' %}" class="overview-secondary-action">Enter workspace</a>
-                <a href="{% url 'staff:partnership_form' %}" class="overview-secondary-action">Partner with us</a>
+            <div class="overview-hero-slideshow" aria-hidden="true">
+                <img class="is-active" src="{% static 'img/brands/staff.jpeg' %}" alt="">
+                <img src="{% static 'img/brands/staff1.jpeg' %}" alt="">
+                <img src="{% static 'img/brands/staff2.jpeg' %}" alt="">
+                <img src="{% static 'img/brands/staff3.jpeg' %}" alt="">
             </div>
-        </div>
-        <div class="overview-hero-mark" aria-hidden="true">
-            <i class="fas fa-chart-line"></i>
-            <span>Live overview</span>
+            <canvas class="ambient-binary ambient-binary-hero" aria-hidden="true"></canvas>
+            <div class="overview-hero-text">
+                <span class="overview-eyebrow"><i class="fas fa-sparkles"></i> BUNI &amp; DTBi innovation ecosystem</span>
+                <h1>From early innovation to thriving ventures.</h1>
+                <p>Connect early support and incubation with the people, partnerships, resources, and measurable outcomes that help ventures grow.</p>
+                <div class="overview-actions">
+                    <a href="{% url 'staff:register' %}" class="overview-primary-action"><i class="fas fa-arrow-right"></i> Get Started</a>
+                    <a href="{% url 'staff:user_login' %}" class="overview-secondary-action">Enter workspace</a>
+                    <a href="{% url 'staff:partnership_form' %}" class="overview-secondary-action">Partner with us</a>
+                </div>
+            </div>
         </div>
     </section>
 

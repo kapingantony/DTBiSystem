@@ -25,6 +25,26 @@ from .data_views import record_page_visit
 
 User = get_user_model()
 
+STARTUP_INDUSTRY_CATEGORIES = (
+    ('agriculture', 'Agriculture & Agritech', ('agriculture', 'agri', 'agribusiness', 'farming', 'livestock')),
+    ('biotechnology', 'Biotechnology & Life Sciences', ('biotech', 'biotechnology', 'life science', 'laboratory')),
+    ('construction', 'Construction & Real Estate', ('construction', 'real estate', 'property', 'building')),
+    ('creative', 'Creative Industries & Media', ('creative', 'media', 'film', 'design', 'animation', 'publishing')),
+    ('education', 'Education & EdTech', ('education', 'edtech', 'edu-tech', 'e-learning', 'learning', 'training')),
+    ('energy', 'Energy & Clean Technology', ('energy', 'renewable', 'solar', 'clean technology', 'cleantech')),
+    ('finance', 'Financial Services & FinTech', ('financial', 'finance', 'fintech', 'banking', 'payments', 'insurance')),
+    ('food', 'Food & Beverage', ('food', 'beverage', 'food processing')),
+    ('health', 'Health & MedTech', ('health', 'medical', 'medtech', 'pharma', 'wellness')),
+    ('ict', 'ICT & Software', ('ict', 'software', 'information technology', 'telecommunications', 'computer systems', 'cybersecurity')),
+    ('manufacturing', 'Manufacturing & Industry', ('manufacturing', 'industrial', 'engineering', 'fabrication')),
+    ('professional', 'Professional & Business Services', ('professional services', 'business services', 'consulting')),
+    ('retail', 'Retail & E-commerce', ('retail', 'e-commerce', 'ecommerce', 'online marketplace')),
+    ('social', 'Social Enterprise & Community Services', ('social enterprise', 'community services', 'non-profit', 'nonprofit')),
+    ('tourism', 'Tourism & Hospitality', ('tourism', 'hospitality', 'travel', 'hotel')),
+    ('transport', 'Transport & Logistics', ('transport', 'logistics', 'mobility', 'delivery')),
+    ('water', 'Water & Sanitation', ('water', 'sanitation', 'waste management')),
+)
+
 
 def get_visitor_counts():
     now = timezone.localtime()
@@ -119,22 +139,41 @@ def startups(request):
         '-created_at',
     )
     # Filter by type if specified
-    startup_type = request.GET.get('type')
+    startup_type = request.GET.get('type', '').strip().lower()
     if startup_type in {'public', 'individual'}:
         startup_list = startup_list.filter(startup_type=startup_type)
     search_query = request.GET.get('q', '').strip()
     industry_filter = request.GET.get('industry', '').strip()
-    status_filter = request.GET.get('status', '').strip()
+    status_filter = request.GET.get('status', '').strip().lower()
     if search_query:
         startup_list = startup_list.filter(
             Q(name__icontains=search_query) | Q(industry__icontains=search_query)
             | Q(description__icontains=search_query) | Q(source__icontains=search_query)
         )
-    if industry_filter:
-        startup_list = startup_list.filter(industry__iexact=industry_filter)
+    if industry_filter.startswith('sector:'):
+        sector_key = industry_filter.split(':', 1)[1]
+        sector = next((item for item in STARTUP_INDUSTRY_CATEGORIES if item[0] == sector_key), None)
+        if sector:
+            sector_query = Q()
+            for keyword in sector[2]:
+                sector_query |= Q(industry__icontains=keyword)
+            startup_list = startup_list.filter(sector_query)
+        else:
+            industry_filter = ''
+    elif industry_filter:
+        raw_industry = industry_filter.split(':', 1)[1] if industry_filter.startswith('industry:') else industry_filter
+        startup_list = startup_list.filter(industry__iexact=raw_industry)
     if status_filter in dict(Startup.STATUS_CHOICES):
         startup_list = startup_list.filter(status=status_filter)
-    industries = Startup.objects.filter(directory_visible=True).exclude(industry='').values_list('industry', flat=True).distinct().order_by('industry')
+    industries = list(Startup.objects.filter(directory_visible=True).exclude(industry='').values_list('industry', flat=True).distinct().order_by('industry'))
+    industry_options = [
+        {'value': f'sector:{key}', 'label': label}
+        for key, label, _keywords in STARTUP_INDUSTRY_CATEGORIES
+    ]
+    for industry in industries:
+        industry_lower = industry.casefold()
+        if not any(any(keyword in industry_lower for keyword in keywords) for _key, _label, keywords in STARTUP_INDUSTRY_CATEGORIES):
+            industry_options.append({'value': f'industry:{industry}', 'label': industry})
     query_params = request.GET.copy()
     query_params.pop('page', None)
     page_obj = Paginator(startup_list, 25).get_page(request.GET.get('page'))
@@ -145,7 +184,7 @@ def startups(request):
         'search_query': search_query,
         'industry_filter': industry_filter,
         'status_filter': status_filter,
-        'industries': industries,
+        'industries': industry_options,
         'status_choices': Startup.STATUS_CHOICES,
         'page_query': query_params.urlencode(),
     }
