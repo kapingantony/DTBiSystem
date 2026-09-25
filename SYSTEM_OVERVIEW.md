@@ -15,10 +15,15 @@ The implemented system covers:
 - Services offered by startups
 - Startup opportunities
 - Partnership requests
-- User accounts, profiles, login tracking, and profile ownership
+- BUNI-to-DTBi participant journeys, programme-stage history, support delivery, follow-ups, and dated outcome snapshots
+- Mentor session scheduling, overlap checks, session history, and calendar exports
+- Staff Data Hub for bulk imports, page-visit statistics, partnership management, and programme reports
+- User accounts and profiles, startup ownership, role-aware staff/admin workflows, login tracking, and saved display preferences
 - Administrative access through Django Admin
 
-Mentors, investors, and staff are persisted records. Mentors and investors are managed by administrators through Django Admin, and their public panels and overview totals read directly from the database.
+The public landing page shows database-backed ecosystem totals. Its funding tile is currently a simple sum of stored amounts with a dollar sign; it does not convert or separate currencies. Use the Data Hub period report for funding totals grouped by recorded currency.
+
+Mentors and investors are database-backed. Their public directories support search, filtering, and pagination, while staff manage source records through Django Admin. Participant, support-delivery, follow-up, and outcome records are private to staff/admin workflows.
 
 The BUNI workbooks in `static/style/buni/` can be loaded with:
 
@@ -30,12 +35,12 @@ python manage.py import_buni_data
 
 | Area | Technology |
 |---|---|
-| Backend | Python and Django 5.1.4 |
+| Backend | Python and Django 5.2.17 (pinned in `requirements.txt`) |
 | Database | SQLite (`db.sqlite3`) |
 | Image/file handling | Pillow and Django media fields |
 | Frontend | Django templates, HTML, CSS, and JavaScript |
 | Styling | `static/style/style.css` |
-| Browser behavior | `static/js/script.js` |
+| Browser behavior | `static/js/script.js` and `static/js/ambient.js` |
 | Icons | Font Awesome 6.5.1 CDN |
 | Authentication | Django built-in authentication |
 | Deployment interface | WSGI and ASGI entry points |
@@ -46,8 +51,9 @@ python manage.py import_buni_data
 flowchart TD
     Browser[Web browser] --> URLs[managedtbi/urls.py]
     URLs --> StaffURLs[staff/urls.py]
-    URLs --> Views[staff/views.py]
+    URLs --> Views[staff/views.py and staff/data_views.py]
     Views --> Forms[staff/forms.py]
+    Views --> Services[staff/data_services.py and staff/report_ai.py]
     Views --> Models[staff/models.py]
     Models --> DB[(SQLite db.sqlite3)]
     Views --> Templates[templates/]
@@ -86,6 +92,8 @@ DTBiSystem/
 ├── staticfiles/                 Collected/static admin files
 └── media/                       User-uploaded files at runtime
 ```
+
+The Data Hub implementation is split across `staff/data_views.py` (access-controlled HTTP workflows), `staff/data_services.py` (import validation and reporting aggregation), and `staff/report_ai.py` (optional executive summaries). Participant workflow forms are in `staff/forms.py`; persisted data and audit history are in `staff/models.py`.
 
 ## 5. Django Configuration
 
@@ -219,10 +227,13 @@ Stores products or services provided by a startup.
 Extends Django's built-in `User` model.
 
 - One-to-one relationship with `User`.
-- User types: admin, public startup, and individual startup.
+- User types: admin, staff, public startup, and individual startup.
 - May link a user to one startup.
 - Stores company information, biography, avatar, phone, website, registration date, last login IP, login count, and email-verification fields.
+- Stores light/dark/system theme preference and an email-notification preference (email delivery is not currently wired to platform events).
 - Provides helpers for checking administrator/startup status and displaying a startup name.
+
+Staff/admin accounts are created by an administrator, not through public registration. New regular staff accounts default to Django `is_staff=True` and `is_superuser=False`; the user-profile signal maps those flags to the `staff` app role. A superuser maps to the `admin` role.
 
 ### Mentor and Investor
 
@@ -239,6 +250,26 @@ Connects a mentor with a startup for a scheduled or completed session.
 - `MentorEngagementHistory` records scheduling and subsequent status/date/time changes for reporting and review.
 - Calendar files can be downloaded for scheduled or confirmed sessions.
 - Reports count completed mentoring as delivered activity and list planned arrangements separately.
+
+### Participant journey and programme outcomes
+
+`ParticipantJourney` is an internal person-centred record. It may be created before a startup is registered and linked to a `Startup` later. It records participant contact details, optional startup, cohort, start date, owner, active/paused/completed/exited status, and current programme stage: BUNI community/outreach, internship, mentoring, pre-incubation, DTBi pre-incubation, incubation, growth, or alumni follow-up.
+
+- `ParticipantJourneyHistory` timestamps stage and status transitions, including the staff member and change note. Admin edits and bulk-imported stage changes also create history.
+- `ParticipantSupport` records training/capacity building, fabrication-lab/prototyping, business advisory, market access, finance access, hub linkage, or other delivered support.
+- `ParticipantFollowUp` assigns an action to staff or a mentor and can link to an existing `MentorEngagement`; `ParticipantFollowUpHistory` records status transitions.
+- `ParticipantOutcome` stores dated full-time/part-time job counts, monthly revenue with currency, customers/users, and milestones. Existing `Funding` remains the source of truth for funding amounts.
+- Data Hub reports show stage movements, support delivered, follow-ups, outcome snapshots, and paired outcome changes for participants with snapshots before and during the report period. Repeated snapshots are not added together, and revenue is compared within currency only.
+- History starts when the feature is introduced; the system does not fabricate prior stages, support, or outcomes.
+
+### DataImportBatch, PageVisit, and analytics
+
+- `DataImportBatch` tracks private upload metadata, mappings, preview errors, and import counts. Supported record types are startups, mentors, investors, and participant journeys.
+- `PageVisit` tracks one startup/mentor/investor profile or directory visit per browser session, entity, and local date; admins can review and mark visits read.
+- `SiteVisit` is updated per browser session by middleware for visitor totals. It is not a page-by-page clickstream.
+- `StartupStatusHistory` captures status/contract snapshots from when its signal was introduced.
+
+### Partnership and other existing records
 
 ### RegistrationRate
 
@@ -272,23 +303,32 @@ Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `st
 
 | URL | Access | Function |
 |---|---|---|
-| `/` | Public | Landing page; authenticated users are sent to the dashboard view |
+| `/` | Public | Public landing page with live database-backed totals and startup search |
 | `/admin/` | Admin | Django administration site |
 | `/staff/login/` | Public | Custom login form |
-| `/staff/logout/` | Authenticated | Custom logout action |
+| `/staff/logout/` | Public | Custom logout action for the current browser session |
 | `/staff/register/` | Public | New account registration |
+| `/staff/settings/` | Authenticated | Update account details, theme preference, and notification preference |
 | `/staff/` | Authenticated | Main authenticated index/dashboard page |
-| `/staff/startups/` | Public | Startup list with type filtering |
+| `/staff/startups/` | Public | Searchable, filterable, paginated startup directory |
 | `/staff/startups/create/` | Authenticated | Create a startup and its related records |
 | `/staff/startups/<slug>/` | Authenticated | View and, when authorized, edit a startup profile |
 | `/staff/partnership/` | Public | Submit a partnership request |
 | `/staff/partnership/success/` | Public | Partnership submission confirmation |
+| `/staff/data/` | Staff/Admin | Data Hub for imports, reports, visits, partnerships, sessions, and participant journeys |
+| `/staff/data/imports/` | Staff/Admin | Preview, map, validate, and commit XLSX/CSV/table-PDF imports (up to 20 MB and 20,000 rows) |
+| `/staff/data/reports/` | Staff/Admin | Weekly, monthly, half-year, yearly, or custom period reports; Excel/PDF download and optional AI summary |
+| `/staff/data/page-visits/` | Admin | Search, filter, paginate, and acknowledge startup/mentor/investor page-visit records |
 | `/staff/data/partnerships/` | Staff/Admin | Review, assign, and track partnership requests |
-| `/staff/mentors/` | Public | Mentor demonstration page |
+| `/staff/data/participant-journey/` | Staff/Admin | Manage participant stages, support delivery, follow-ups, and outcome snapshots |
+| `/staff/mentors/` | Public | Searchable, filterable, paginated mentor directory |
 | `/staff/mentor-sessions/` | Staff/Admin | Schedule, search, paginate, and update mentor appointments |
 | `/staff/mentor-sessions/<id>/calendar.ics` | Staff/Admin | Download an appointment for a calendar |
-| `/staff/investors/` | Public | Investor demonstration page |
-| `/staff/staff/` | Public | Staff demonstration page |
+| `/staff/mentors/<id>/` | Public | Mentor profile; authenticated staff can record completed sessions and authorized users can view scheduled support |
+| `/staff/investors/` | Public | Searchable, filterable, paginated investor directory |
+| `/staff/investors/<id>/` | Public | Investor profile |
+| `/staff/staff/` | Staff/Admin | Staff account directory |
+| `/staff/visitor-stats/` | Public | JSON visitor totals used by the live overview counter |
 | `/accounts/login/` | Public | Django class-based login route |
 | `/accounts/logout/` | Authenticated | Django class-based logout route |
 
@@ -306,8 +346,8 @@ Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `st
 
 1. Registers at `/staff/register/`.
 2. Selects `public` or `individual` account type.
-3. Is logged in automatically.
-4. Is redirected to startup creation.
+3. The account is created with Django staff/superuser flags off and the visitor is sent to sign in.
+4. After sign-in, is redirected to startup creation if no startup is linked.
 5. Completes the startup form and related inline sections.
 6. The system saves the startup, founder, opportunity, funding, KPI, pitch-deck, and service records in one transaction.
 7. The startup is linked to the user's profile.
@@ -319,13 +359,13 @@ At least one founder is required during startup creation.
 
 1. Submits username and password.
 2. The system creates a missing `UserProfile` if necessary.
-3. Staff/superusers are marked as administrators in their profile.
+3. Superusers map to the `admin` app role; Django staff accounts map to the `staff` app role; ordinary accounts retain their selected startup-account type.
 4. Login count and remote IP are updated.
 5. A login notification is created by the login signal.
 6. Startup users go to their startup profile or startup creation page.
 7. Administrators go to the dashboard.
 
-The selected login `user_type` is currently a form value only; it does not enforce account type during authentication.
+The selected login type is checked against the account's Django flags and stored app role. Selecting Admin does not grant admin access. Standard staff accounts have Django Staff status on and Superuser status off.
 
 ### Startup profile editing
 
@@ -344,6 +384,28 @@ The selected login `user_type` is currently a form value only; it does not enfor
 4. A staff owner can be assigned, internal review notes added, and status advanced through delivery or closed as completed/rejected.
 5. Status changes are retained in `PartnershipHistory` and included in selected-period reports.
 
+### Staff Data Hub and bulk import
+
+1. Staff/admin open `/staff/data/` and choose imports, reports, page visits, partnerships, mentor sessions, or Participant Journey.
+2. The importer accepts Excel (`.xlsx`), CSV, and table-based text PDFs, up to 20 MB and 20,000 data rows. It reads the first Excel worksheet; scanned PDFs require conversion to a supported table/text format.
+3. Staff map file columns to system fields, review duplicate identities and row validation issues, then explicitly confirm the import. A batch records created, updated, and skipped rows; issue rows can be downloaded as CSV.
+4. Participant imports match by email or name/cohort. Optional startup links require one exact match to an existing startup; imports never silently create linked startup records.
+
+### Participant journey, support, and outcomes
+
+1. Staff create an internal participant record at any supported programme stage; linking a startup is optional at first.
+2. Staff update current stage/status, cohort, journey owner, and a change note. Each initial record and transition is timestamped in the history.
+3. Staff record non-mentoring support delivered and assign follow-up actions. Follow-ups may refer to an existing mentor or mentor session; session delivery itself stays in `MentorEngagement`.
+4. Staff record dated outcome snapshots for jobs, monthly revenue/currency, customers/users, and milestones. Existing `Funding` records are used for investment totals.
+5. Reports compare outcomes only for participants with a snapshot before and another within the period. The app does not treat snapshots as period additions and does not combine currencies.
+
+### Programme reports and page visits
+
+- Report periods: current week, month, half-year, year, or custom dates. Reports are viewable online and downloadable as Excel or PDF.
+- Reports include startups and status, funding, KPIs, completed and scheduled mentor sessions, partnerships, page visits, participant journey changes, delivered support, follow-ups, and outcome snapshots/comparisons.
+- AI executive summaries are optional. With no API key, summaries use local aggregate calculations. With a configured provider, only aggregate metrics are submitted; names, emails, and individual records are excluded. Set `DTBI_AI_API_KEY`, optionally `DTBI_AI_MODEL`, and optionally `DTBI_AI_BASE_URL`.
+- Startup, mentor, and investor detail pages and directories record one visit per browser session, entity, and local day. Admins review and mark records read in Page Visit Notifications.
+
 ## 9. Forms and Validation
 
 `staff/forms.py` provides:
@@ -357,6 +419,11 @@ The selected login `user_type` is currently a form value only; it does not enfor
 - `PitchDeckForm`
 - `ServiceOfferedForm`
 - `PartnershipForm`
+- `MentorEngagementScheduleForm`
+- `ParticipantJourneyForm`
+- `ParticipantSupportForm`
+- `ParticipantFollowUpForm`
+- `ParticipantOutcomeForm`
 
 Inline formsets connect the related records to a startup:
 
@@ -380,13 +447,21 @@ Templates are stored in `templates/`.
 | `index.html` | Authenticated home page with recent startups and registration information |
 | `startups.html` | Startup table, search, and filtering |
 | `startup_profile.html` | Startup overview and create/edit form with related sections |
+| `mentor_profile.html` | Mentor information and permitted session activity |
+| `investor_profile.html` | Investor details and funding links |
 | `partnership_form.html` | Partnership request form |
 | `partnership_success.html` | Partnership confirmation |
 | `partnership_inbox.html` | Staff/admin partnership workflow and status history |
 | `mentor_sessions.html` | Staff/admin appointment scheduling and follow-up |
-| `mentors.html` | Mentor panel/demo page |
-| `investors.html` | Investor panel/demo page |
-| `staff_list.html` | Staff panel/demo page |
+| `participant_journey.html` | Staff/admin participant stages, support, follow-ups, history, and outcomes |
+| `data_hub.html` | Staff/admin entry point for imports, reports, partnerships, appointments, and participant tracking |
+| `data_import.html` | Private mapped import preview, row validation, and import result |
+| `data_reports.html` | Period metrics, outcome comparisons, optional AI summary, and report download links |
+| `page_visit_admin.html` | Admin-only page-visit notifications and filters |
+| `settings.html` | Authenticated profile, theme, and account preferences |
+| `mentors.html` | Database-backed mentor directory |
+| `investors.html` | Database-backed investor directory |
+| `staff_list.html` | Restricted staff account directory |
 | `public_page.html` | Present but not currently referenced by a view |
 | `registration/login.html` | Login page |
 | `registration/register.html` | Registration page |
@@ -396,7 +471,7 @@ Templates are stored in `templates/`.
 Frontend assets:
 
 - `static/style/style.css`: application styling.
-- `static/js/script.js`: sidebar behavior, filtering, modal handling, and browser-only mentor/investor/staff record manipulation.
+- `static/js/script.js`: shared browser interactions and sidebar behavior.
 - `static/js/ambient.js`: low-contrast binary rain in the sidebar; it is local, pauses when the tab is hidden, and is disabled for reduced-motion preferences.
 - `partials/pagination.html`: shared server-side pagination controls that retain the current search/filter criteria.
 - `static/img/dtbi-logo.svg`: available logo asset.
@@ -407,30 +482,16 @@ Frontend assets:
 `staff/signals.py` contains the following behavior:
 
 - Creates a `LoginNotification` when a user logs in.
-- Creates default registration-rate rows after migrations if they do not exist.
-- Defines the registration-rate post-migration receiver twice; the existence checks prevent duplicate rows, but the duplicate definition should be cleaned up.
-- Contains a profile-view receiver that currently performs no meaningful tracking.
+- Synchronizes `UserProfile.user_type` from Django auth flags: superuser becomes admin; `is_staff` becomes staff.
+- Records `StartupStatusHistory` when a startup is created or its status/contract status changes.
+- Creates initial `RegistrationRate` rows after migrations if they do not exist. It does not keep their totals current when users register.
+- Login alerts are stored in the database. Email-notification preferences are stored but no email delivery workflow is connected.
 
 Signals are loaded through the app configuration in `staff/apps.py`.
 
 ## 12. Database Migrations
 
-Migration history:
-
-1. `0001_initial.py`
-   - Creates the original startup, founder, opportunity, funding, KPI, pitch-deck, service, and partnership tables.
-2. `0002_registrationrate_loginnotification_userprofile_and_more.py`
-   - Adds registration rates, login notifications, user profiles, and profile views.
-3. `0003_alter_startup_contract_status.py`
-   - Makes `Startup.contract_status` explicitly blankable.
-4. `0011_partnership_assigned_to_and_more.py`
-   - Adds structured partnership proposal details, startup linkage, staff ownership/review notes, expanded lifecycle statuses, and partnership status history.
-5. `0012_mentorengagement_meeting_location_and_more.py`
-   - Adds scheduling status, start time, meeting details, scheduler, and indexes for mentor appointments.
-6. `0013_mentorengagementhistory.py`
-   - Adds an audit trail for session arrangements and their status/schedule changes.
-
-The latest migration was generated with Django 5.1.4. The first two migration files have older generated headers, but the migration chain applies successfully in the current environment.
+Migration files run in sequence from `0001_initial.py` through `0016_alter_dataimportbatch_dataset.py`. The chain adds startup/account data, visitor and people records, profile preferences, funding/import/session history, and the partnership workflow, then the Participant Journey models and participant import choice. The current database has migrations through `0016` applied. New participant tables are additive; no historical stages or outcome snapshots were backfilled.
 
 ## 13. Local Setup and Operation
 
@@ -461,7 +522,7 @@ python manage.py test
 python manage.py collectstatic
 ```
 
-The current local server has been verified to start successfully and the landing page returns HTTP 200.
+AI report summaries are disabled unless `DTBI_AI_API_KEY` is configured. Optional settings are `DTBI_AI_MODEL` and `DTBI_AI_BASE_URL`. Without a key, the report uses its local rule-based summary.
 
 ## 14. Automated Tests
 
@@ -477,43 +538,34 @@ Tests are located in `staff/tests.py` and cover:
 - Owner editing versus stranger read-only access
 - Landing, login, registration, dashboard, startup-list, and template behavior
 
-A current environment note: Django system checks pass, but the existing test suite encounters a Python 3.14/Django 5.1.4 compatibility error while the Django test client copies rendered template context. This is separate from normal server startup and should be resolved before relying on the full test suite in CI.
+The automated test suite was not run during the latest feature/documentation update. Do not interpret the system check or template compilation as a test-suite result.
 
 ## 15. Current Limitations and Risks
 
-These items are important for the next development phase:
+Current known limitations and operational considerations:
 
-1. `dashboard()` renders `dashboard.html`, but that template is not present in the current templates directory.
-2. `profile_view_notification()` renders `profile_views.html`, which is also not present.
-3. Those two views do not currently have routes.
-4. Custom logout redirects to the protected `staff:dashboard` route after logout, which can send a logged-out user back to login rather than the public landing page.
-5. Mentor, investor, and staff records are hard-coded or browser-only and are not database-backed.
-6. Registration statistics are not automatically incremented when users register.
-7. Profile-view tracking is not connected to normal profile browsing.
-8. Login `user_type` is not used to enforce authorization.
-9. Password validators are configured in settings but registration uses `create_user()` without explicitly invoking password validation.
-10. Media storage is configured, but a development media URL route is not defined.
-11. Development-only security settings must be replaced for production.
-12. The project name and implemented domain are not fully aligned: the current code is a startup incubation platform, while the parent folder name refers to fleet management and ERP.
+1. `dashboard()` and `profile_view_notification()` remain legacy, unrouted views; their referenced templates are absent. The active authenticated landing is `staff:index` at `/staff/`.
+2. `RegistrationRate` entries are initialized after migrations but registration events do not update their totals.
+3. `ProfileView` and `profile_view_notification()` are not connected to normal profile browsing. Separate `SiteVisit` and `PageVisit` tracking does operate for visitor totals and startup/mentor/investor directories and profiles.
+4. Outcome comparisons need at least one snapshot from before the reporting period and one during it. New participant records without a baseline are reported as snapshots but excluded from change comparisons.
+5. Participant programme stages and support types are fixed in model choices. Change them through a planned code/migration update, not free text. Evidence attachments and formal attendance/session registration for training or lab use are not yet implemented.
+6. Participant outcome snapshots are staff-entered monitoring data, not independently verified financial/employment records. Reports should be read as data entered in the system.
+7. The importer reads the first worksheet from an Excel workbook and extracts tabular text from PDFs; it does not OCR scanned documents.
+8. `email_notifications` is a saved preference, but outgoing event email is not implemented. The configured development email backend writes to the console.
+9. Media storage is configured, but the root URL configuration does not serve media in development. Configure production storage and permissions before deployment.
+10. Public landing funding is summed across stored amounts and shown with a dollar sign, without currency conversion. Prefer currency-grouped period reports for financial comparison.
+11. Registration's custom password handler does not call Django's configured password validators; add explicit validation before production.
+12. Development-only security settings must be replaced for production: debug mode, development secret, permissive hosts, SQLite, and deployment/server configuration.
 
-## 16. Recommended Development Roadmap
+## 16. Recommended Next Steps
 
-### Immediate reliability
+### Operational quality
 
-- Resolve the Python 3.14/Django test-client compatibility issue or standardize the project on a supported Python/Django pair.
-- Add missing `dashboard.html` and `profile_views.html`, or remove/route the unused views.
-- Fix logout to redirect to the public landing page.
-- Remove the duplicate registration-rate signal.
-- Add a development media-serving route.
-
-### Core product completion
-
-- Add persistent models and CRUD workflows for mentors, investors, and staff.
-- Connect dashboard statistics to live registration and startup data.
-- Implement profile-view tracking during normal profile access.
-- Enforce role and account-type authorization server-side.
-- Add password validation to registration.
-- Add pagination and server-side filtering to startup listings.
+- Validate the Participant Journey stages, support categories, and outcome definitions with BUNI and DTBi programme teams before loading large historical workbooks.
+- Establish a regular outcome snapshot cadence and clear definitions for jobs, monthly revenue, and customers/users.
+- Add evidence/attendance records and configurable programme stages if staff need audit-level evidence or new cohorts frequently.
+- Decide whether to remove or complete the unused legacy dashboard/ProfileView views, and make registration totals event-driven if those dashboard metrics are still needed.
+- Add automated coverage for the new participant journey, import, report, and permissions workflows before release.
 
 ### Production readiness
 
@@ -527,12 +579,4 @@ These items are important for the next development phase:
 
 ## 17. Current Status
 
-The project is runnable locally with the isolated `.venv` environment. Dependencies are declared in `requirements.txt`, migrations are up to date, `manage.py check` passes, and the development server responds successfully at `http://127.0.0.1:8000/`.
-
-## 18. Participant Journey and Outcomes
-
-The staff-only Participant Journey tracker at `/staff/data/participant-journey/` records a participant from BUNI community, internship, mentoring, or pre-incubation stages through DTBi pre-incubation, incubation, growth, and alumni follow-up. A journey can exist before a startup is formally registered; staff can link a startup later. Stage and status changes are recorded in a dated history table.
-
-Staff can record training, fabrication-lab/prototyping, business advisory, market-access, finance-access, hub-linkage, and other support. Existing mentor sessions remain the source of truth for mentorship delivery; follow-up actions can be assigned to staff or a mentor and linked to an existing session. Follow-up status changes and programme stage changes are timestamped. Existing Funding records remain the source of truth for investment.
-
-Dated outcome snapshots capture full-time and part-time jobs, monthly revenue with its currency, customers/users, and milestones. Period reports include stage changes, support delivered, snapshots, and outcome comparisons only for participants with both a snapshot before and another during the selected period. Repeated snapshots are not summed, and revenue is never combined across currencies. Historical participant stages, support, and outcomes are not inferred before this tracker was introduced. Participant journeys can also be bulk-imported through the Data Hub preview-and-confirm workflow; existing participants match by email or name/cohort, and startup links require one exact existing startup match. The additive schema is migrations `0014_participantjourney_participantfollowup_and_more`, `0015_participantfollowuphistory`, and `0016_alter_dataimportbatch_dataset`.
+During the latest update, `manage.py check` reported no issues, `makemigrations --check --dry-run` reported no pending model changes, and the updated participant, import, report, and base templates compiled. Automated tests were not run. The local SQLite database has migrations applied through `0016`.
