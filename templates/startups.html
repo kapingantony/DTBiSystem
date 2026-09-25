@@ -17,18 +17,18 @@
 </style>
 
 <div class="filter-bar">
-    <form method="get" class="filter-bar">
+    <form method="get" class="filter-bar" id="startupFilters">
     <div class="search-box"><i class="fas fa-search"></i><input type="search" placeholder="Name, industry, or description" id="startupSearch" name="q" value="{{ search_query }}"></div>
-    <select class="filter-select" name="industry"><option value="">All Industries</option>{% for industry in industries %}<option value="{{ industry }}" {% if industry_filter == industry %}selected{% endif %}>{{ industry }}</option>{% endfor %}</select>
-    <select class="filter-select" name="status"><option value="">All Status</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-    <select class="filter-select" name="type"><option value="">All Types</option><option value="public" {% if filter_type == 'public' %}selected{% endif %}>Public</option><option value="individual" {% if filter_type == 'individual' %}selected{% endif %}>Individual</option></select>
-    <button class="btn btn-outline" type="submit">Search &amp; filter</button>
+    <select class="filter-select" name="industry" aria-label="Filter startups by industry"><option value="">All Industries</option>{% for industry in industries %}<option value="{{ industry }}" {% if industry_filter == industry %}selected{% endif %}>{{ industry }}</option>{% endfor %}</select>
+    <select class="filter-select" name="status" aria-label="Filter startups by status"><option value="">All Statuses</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <select class="filter-select" name="type" aria-label="Filter startups by type"><option value="">All Types</option><option value="public" {% if filter_type == 'public' %}selected{% endif %}>Public</option><option value="individual" {% if filter_type == 'individual' %}selected{% endif %}>Individual</option></select>
+    <button class="btn btn-outline" type="submit">Apply filters</button>
     </form>
     {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
     {% if user.profile.is_admin %}<a href="{% url 'admin:staff_startup_changelist' %}" class="btn btn-outline"><i class="fas fa-shield-halved"></i> Manage Startups</a>{% endif %}
 </div>
 
-<div class="filter-bar"><span>Showing {{ page_obj.paginator.count }} matching startups.</span>{% if search_query or industry_filter or status_filter or filter_type %}<a class="btn btn-outline btn-sm" href="{% url 'staff:startups' %}">Clear filters</a>{% endif %}</div>
+<div class="filter-bar"><span>{% if search_query or industry_filter or status_filter or filter_type %}Showing {{ page_obj.paginator.count }} startups matching your filters.{% else %}{{ page_obj.paginator.count }} startups in the directory.{% endif %}</span>{% if search_query or industry_filter or status_filter or filter_type %}<a class="btn btn-outline btn-sm" href="{% url 'staff:startups' %}">Clear filters</a>{% endif %}</div>
 
 <div class="card">
     <div class="card-body flush">
@@ -53,7 +53,7 @@
                         <td><span class="type-badge {{ s.startup_type }}">{{ s.get_startup_type_display }}</span></td>
                         <td>{{ s.industry|default:"—" }}</td>
                         <td><span class="status-pill {{ s.status }}">{{ s.get_status_display }}</span></td>
-                        <td><a href="{% url 'staff:startup_profile' slug=s.slug %}" class="btn btn-sm btn-outline" aria-label="View more details for {{ s.name }}">More <i class="fas fa-arrow-right"></i></a></td>
+                        <td><a href="{% url 'staff:startup_profile' slug=s.slug %}" class="btn btn-sm btn-outline" aria-label="View more details for {{ s.name }}">More</a></td>
                     </tr>
                     {% empty %}
                     <tr>
@@ -73,4 +73,15 @@
     </div>
 </div>
 {% include "partials/pagination.html" %}
+<script>
+    (function () {
+        const filters = document.getElementById('startupFilters');
+        if (!filters) return;
+        filters.querySelectorAll('select[name="industry"], select[name="status"], select[name="type"]').forEach(function (select) {
+            select.addEventListener('change', function () {
+                filters.requestSubmit();
+            });
+        });
+    }());
+</script>
 {% endblock %}

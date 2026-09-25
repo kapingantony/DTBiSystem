@@ -161,6 +161,8 @@ img { max-width: 100%; display: block; }
 
 @media (prefers-reduced-motion: reduce) {
   .ambient-binary { display: none; }
+  .page-content::before { animation: none; }
+  .overview-hero-slideshow img { transition: none; }
 }
 
 .sidebar-header {
@@ -495,14 +497,10 @@ img { max-width: 100%; display: block; }
 }
 
 .brand-logo-fursa {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: var(--gold-500);
-  color: var(--navy-900);
-  font-size: 0.65rem;
-  font-weight: 800;
+  width: 42px;
+  height: 28px;
+  border-radius: 3px;
+  background: var(--white);
 }
 
 .ext-link:hover {
@@ -514,6 +512,26 @@ img { max-width: 100%; display: block; }
 .page-content {
   flex: 1;
   padding: 28px;
+  position: relative;
+  isolation: isolate;
+}
+
+.page-content::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 12% 10%, rgba(37, 99, 160, 0.09), transparent 43%),
+    radial-gradient(ellipse at 88% 82%, rgba(212, 168, 67, 0.07), transparent 40%),
+    var(--cream);
+  background-size: 140% 140%;
+  animation: content-atmosphere 26s ease-in-out infinite alternate;
+}
+
+@keyframes content-atmosphere {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
 }
 
 /* ============================================
@@ -1144,6 +1162,29 @@ table tbody tr:last-child td { border-bottom: none; }
   position: relative;
 }
 
+.overview-hero-slideshow,
+.overview-hero-slideshow::after,
+.overview-hero-slideshow img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.overview-hero-slideshow { z-index: 0; overflow: hidden; }
+.overview-hero-slideshow::after {
+  content: '';
+  background: linear-gradient(90deg, rgba(8, 23, 43, 0.95) 0%, rgba(8, 23, 43, 0.82) 57%, rgba(8, 23, 43, 0.58) 100%);
+}
+.overview-hero-slideshow img {
+  object-fit: cover;
+  object-position: center 43%;
+  opacity: 0;
+  transform: scale(1.025);
+  transition: opacity 900ms ease, transform 4s ease;
+}
+.overview-hero-slideshow img.is-active { opacity: 1; transform: scale(1); }
+
 .overview-hero::after {
   content: '';
   position: absolute;
@@ -1157,7 +1198,9 @@ table tbody tr:last-child td { border-bottom: none; }
 }
 
 .overview-hero-copy, .overview-hero-mark { position: relative; z-index: 1; }
-.overview-hero-copy { max-width: 720px; }
+.overview-hero-copy { max-width: 720px; position: relative; isolation: isolate; }
+.overview-hero-copy > :not(.ambient-binary-hero) { position: relative; z-index: 1; }
+.ambient-binary-hero { opacity: 0.2; }
 
 .overview-eyebrow, .overview-kicker {
   color: var(--gold-500);

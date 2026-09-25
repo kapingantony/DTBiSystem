@@ -21,7 +21,7 @@ The implemented system covers:
 - User accounts and profiles, startup ownership, role-aware staff/admin workflows, login tracking, and saved display preferences
 - Administrative access through Django Admin
 
-The public landing page shows database-backed ecosystem totals. Its funding tile is currently a simple sum of stored amounts with a dollar sign; it does not convert or separate currencies. Use the Data Hub period report for funding totals grouped by recorded currency.
+The public landing page presents BUNI and DTBi together and shows database-backed ecosystem totals. Its hero cycles through the four local staff images every 2.5 seconds and retains the binary-rain effect. The shared page-content background has a slow, low-contrast gradient animation. Both the slideshow and gradient respect reduced-motion preferences. Its funding tile is currently a simple sum of stored amounts with a dollar sign; it does not convert or separate currencies. Use the Data Hub period report for funding totals grouped by recorded currency.
 
 Mentors and investors are database-backed. Their public directories support search, filtering, and pagination, while staff manage source records through Django Admin. Participant, support-delivery, follow-up, and outcome records are private to staff/admin workflows.
 
@@ -338,7 +338,7 @@ Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `st
 
 1. Opens `/` and sees the landing page.
 2. Browses the startup list.
-3. Searches and filters startups by name, industry, description, status, or type; directory pages are paginated.
+3. Searches startups by name, industry, description, or source, and filters by industry, status, or type. Filter dropdowns apply immediately, retain other selected filters and the search term, and reset pagination. The initial count shows the directory total; after a search/filter, it shows the matching result count. Directory pages are paginated.
 4. Submits a partnership request.
 5. Opens the login or registration page.
 
@@ -442,8 +442,8 @@ Templates are stored in `templates/`.
 
 | Template | Responsibility |
 |---|---|
-| `base.html` | Shared layout, sidebar, top bar, navigation, authentication controls, CSS, and JavaScript loading |
-| `landing.html` | Public landing page |
+| `base.html` | Shared layout, sidebar, top bar, navigation, authentication controls, CSS, and JavaScript loading; the top bar shows DTBi, BUNI, and Fursa Hub logos |
+| `landing.html` | Public BUNI–DTBi overview with live totals, startup search, staff-photo hero slideshow, and visitor pulse |
 | `index.html` | Authenticated home page with recent startups and registration information |
 | `startups.html` | Startup table, search, and filtering |
 | `startup_profile.html` | Startup overview and create/edit form with related sections |
@@ -470,9 +470,11 @@ Templates are stored in `templates/`.
 
 Frontend assets:
 
-- `static/style/style.css`: application styling.
+- `static/style/style.css`: application styling, including a subtle animated gradient behind shared page content and a darkened staff-photo hero slideshow.
 - `static/js/script.js`: shared browser interactions and sidebar behavior.
-- `static/js/ambient.js`: low-contrast binary rain in the sidebar; it is local, pauses when the tab is hidden, and is disabled for reduced-motion preferences.
+- `static/js/ambient.js`: low-contrast binary rain in the sidebar and overview hero; it is local, pauses when the tab is hidden, and is disabled for reduced-motion preferences.
+- `static/img/brands/staff.jpeg` and `staff1.jpeg`–`staff3.jpeg`: local images used by the overview hero slideshow.
+- `static/img/brands/fursahub.png`: Fursa Hub logo shown in the shared top bar.
 - `partials/pagination.html`: shared server-side pagination controls that retain the current search/filter criteria.
 - `static/img/dtbi-logo.svg`: available logo asset.
 - `staticfiles/`: collected static files and Django Admin assets.
@@ -579,4 +581,4 @@ Current known limitations and operational considerations:
 
 ## 17. Current Status
 
-During the latest update, `manage.py check` reported no issues, `makemigrations --check --dry-run` reported no pending model changes, and the updated participant, import, report, and base templates compiled. Automated tests were not run. The local SQLite database has migrations applied through `0016`.
+The local SQLite database has migrations applied through `0016`. The latest startup-filter and overview presentation changes were checked with `git diff --check`; the automated test suite was not run for those frontend changes. At the earlier participant workflow checkpoint, `manage.py check` reported no issues, `makemigrations --check --dry-run` reported no pending model changes, and the participant, import, report, and base templates compiled.

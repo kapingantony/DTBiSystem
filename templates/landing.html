@@ -1,15 +1,23 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}DTBi — System Overview{% endblock %}
+{% block title %}BUNI &amp; DTBi — Innovation Ecosystem Overview{% endblock %}
 {% block page_title %}System Overview{% endblock %}
 
 {% block content %}
 <main class="overview-page">
     <section class="overview-hero">
+        <div class="overview-hero-slideshow" aria-hidden="true">
+            <img class="is-active" src="{% static 'img/brands/staff.jpeg' %}" alt="">
+            <img src="{% static 'img/brands/staff1.jpeg' %}" alt="">
+            <img src="{% static 'img/brands/staff2.jpeg' %}" alt="">
+            <img src="{% static 'img/brands/staff3.jpeg' %}" alt="">
+        </div>
         <div class="overview-hero-copy">
-            <span class="overview-eyebrow"><i class="fas fa-sparkles"></i> DTBi management system</span>
-            <h1>One clear view of the innovation landscape.</h1>
-            <p>Manage startup profiles, founders, funding, opportunities, performance indicators, pitch decks, services, and partnerships from one focused workspace.</p>
+            <canvas class="ambient-binary ambient-binary-hero" aria-hidden="true"></canvas>
+            <span class="overview-eyebrow"><i class="fas fa-sparkles"></i> BUNI &amp; DTBi innovation ecosystem</span>
+            <h1>From early innovation to thriving ventures.</h1>
+            <p>Connect early support and incubation with the people, partnerships, resources, and measurable outcomes that help ventures grow.</p>
             <div class="overview-actions">
                 <a href="{% url 'staff:register' %}" class="overview-primary-action"><i class="fas fa-arrow-right"></i> Get Started</a>
                 <a href="{% url 'staff:user_login' %}" class="overview-secondary-action">Enter workspace</a>
@@ -99,6 +107,16 @@
 </main>
 <script>
     (function () {
+        const heroImages = document.querySelectorAll('.overview-hero-slideshow img');
+        if (heroImages.length > 1 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            let activeImage = 0;
+            window.setInterval(function () {
+                heroImages[activeImage].classList.remove('is-active');
+                activeImage = (activeImage + 1) % heroImages.length;
+                heroImages[activeImage].classList.add('is-active');
+            }, 2500);
+        }
+
         const countNodes = document.querySelectorAll('[data-visitor-count]');
         const numberFormat = new Intl.NumberFormat();
 
