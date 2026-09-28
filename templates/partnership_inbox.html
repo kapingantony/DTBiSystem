@@ -36,6 +36,6 @@
     {% include "partials/pagination.html" %}
 </div></section>
 <section class="card mt-20"><div class="card-header"><h3>Recent status history</h3></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Request</th><th>Change</th><th>Changed by</th><th>Time</th><th>Note</th></tr></thead><tbody>
-{% for item in history %}<tr><td>{{ item.partnership.organization|default:item.partnership.startup_name }}</td><td>{{ item.get_old_status_display|default:'Submitted' }} &rarr; {{ item.get_new_status_display }}</td><td>{{ item.changed_by.get_full_name|default:item.changed_by.username|default:'Public submission' }}</td><td>{{ item.changed_at|date:'Y-m-d H:i' }}</td><td>{{ item.note|default:'-'|truncatechars:120 }}</td></tr>{% empty %}<tr><td colspan="5">No status changes recorded yet.</td></tr>{% endfor %}
+{% for item in history %}<tr><td>{{ item.partnership.organization|default:item.partnership.startup_name }}</td><td>{{ item.get_old_status_display|default:'Submitted' }} &rarr; {{ item.get_new_status_display }}</td><td>{% if item.changed_by %}{{ item.changed_by.get_full_name|default:item.changed_by.username }}{% else %}Public submission{% endif %}</td><td>{{ item.changed_at|date:'Y-m-d H:i' }}</td><td>{{ item.note|default:'-'|truncatechars:120 }}</td></tr>{% empty %}<tr><td colspan="5">No status changes recorded yet.</td></tr>{% endfor %}
 </tbody></table></div></div></section>
 {% endblock %}
