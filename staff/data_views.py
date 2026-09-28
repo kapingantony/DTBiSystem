@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from openpyxl import Workbook
@@ -815,7 +816,7 @@ def mentor_session_ical(request, pk):
 @require_http_methods(['GET', 'POST'])
 def mentor_profile(request, pk):
     if not request.user.is_authenticated:
-        return redirect(f"/staff/login/?next=/staff/mentors/{pk}/")
+        return redirect(f"{reverse('staff:user_login')}?next={reverse('mentor_profile', kwargs={'pk': pk})}")
     mentor = get_object_or_404(Mentor, pk=pk, is_active=True)
     if request.method == 'POST' and request.user.is_authenticated:
         if not (request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()):
@@ -843,14 +844,14 @@ def mentor_profile(request, pk):
                 note='Completed mentoring session recorded.',
             )
             messages.success(request, 'Mentor session saved.')
-            return redirect('staff:mentor_profile', pk=mentor.pk)
+            return redirect('mentor_profile', pk=mentor.pk)
         except (ValidationError, ValueError, Startup.DoesNotExist) as exc:
             message = '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Enter a valid startup, date, and hours.'
             messages.error(request, message)
     is_owner = getattr(request.user, 'mentor_record_id', None) == mentor.pk
     is_staff_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
     if not (is_owner or is_staff_admin):
-        return redirect('staff:mentors')
+        return redirect('mentors')
     record_page_visit(request, 'mentor', mentor.pk, mentor.name)
     return render(request, 'mentor_profile.html', {
         'mentor': mentor,
@@ -872,12 +873,12 @@ def mentor_profile(request, pk):
 
 def investor_profile(request, pk):
     if not request.user.is_authenticated:
-        return redirect(f"/staff/login/?next=/staff/investors/{pk}/")
+        return redirect(f"{reverse('staff:user_login')}?next={reverse('investor_profile', kwargs={'pk': pk})}")
     investor = get_object_or_404(Investor, pk=pk, status='active')
     profile = UserProfile.objects.filter(user=request.user).first()
     is_owner = getattr(request.user, 'investor_record_id', None) == investor.pk
     if not (request.user.is_superuser or (profile and profile.user_type in ('admin', 'staff')) or is_owner):
-        return redirect('staff:investors')
+        return redirect('investors')
     record_page_visit(request, 'investor', investor.pk, investor.organization or investor.name)
     return render(request, 'investor_profile.html', {
         'investor': investor,

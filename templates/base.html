@@ -60,14 +60,14 @@
                     </a>
                 </div>
                 <div class="nav-item">
-                    <a href="{% url 'staff:mentors' %}" class="nav-link {% if request.resolver_match.url_name == 'mentors' %}active{% endif %}">
+                    <a href="{% url 'mentors' %}" class="nav-link {% if request.resolver_match.url_name == 'mentors' %}active{% endif %}">
                         <i class="fas fa-chalkboard-teacher"></i>
                         <span>Mentors</span>
                         <span class="badge">{{ live_counts.mentors }}</span>
                     </a>
                 </div>
                 <div class="nav-item">
-                    <a href="{% url 'staff:investors' %}" class="nav-link {% if request.resolver_match.url_name == 'investors' %}active{% endif %}">
+                    <a href="{% url 'investors' %}" class="nav-link {% if request.resolver_match.url_name == 'investors' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i>
                         <span>Investors</span>
                         <span class="badge">{{ live_counts.investors }}</span>

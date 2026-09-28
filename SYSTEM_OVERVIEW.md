@@ -34,7 +34,6 @@ python manage.py import_buni_data
 ## 2. Technology Stack
 
 | Area | Technology |
-|---|---|
 | Backend | Python and Django 5.2.17 (pinned in `requirements.txt`) |
 | Database | SQLite (`db.sqlite3`) |
 | Image/file handling | Pillow and Django media fields |
@@ -302,7 +301,6 @@ Stores proposals that can connect DTBi/BUNI partners with startups and programme
 Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `staff/urls.py`.
 
 | URL | Access | Function |
-|---|---|---|
 | `/` | Public | Public landing page with live database-backed totals and startup search |
 | `/admin/` | Admin | Django administration site |
 | `/staff/login/` | Public | Custom login form |
@@ -321,13 +319,13 @@ Root routes are defined in `managedtbi/urls.py`; staff routes are defined in `st
 | `/staff/data/page-visits/` | Admin | Search, filter, paginate, and acknowledge startup/mentor/investor page-visit records |
 | `/staff/data/partnerships/` | Staff/Admin | Review, assign, and track partnership requests |
 | `/staff/data/participant-journey/` | Staff/Admin | Manage participant stages, support delivery, follow-ups, and outcome snapshots |
-| `/staff/mentors/` | Public | Searchable, filterable, paginated mentor directory |
+| `/mentors/` | Public | Searchable, filterable, paginated mentor directory (`/staff/mentors/` remains as a legacy alias) |
 | `/staff/mentor-sessions/` | Staff/Admin | Schedule, search, paginate, and update mentor appointments |
 | `/staff/mentor-sessions/<id>/calendar.ics` | Staff/Admin | Download an appointment for a calendar |
-| `/staff/mentors/<id>/` | Public | Mentor profile; authenticated staff can record completed sessions and authorized users can view scheduled support |
-| `/staff/investors/` | Public | Searchable, filterable, paginated investor directory |
-| `/staff/investors/<id>/` | Public | Investor profile |
-| `/staff/staff/` | Staff/Admin | Staff account directory |
+| `/mentors/<id>/` | Public | Mentor profile; authenticated staff can record completed sessions and authorized users can view scheduled support |
+| `/investors/` | Public | Searchable, filterable, paginated investor directory (`/staff/investors/` remains as a legacy alias) |
+| `/investors/<id>/` | Public | Investor profile |
+| `/staff/team/` | Staff/Admin | Staff account directory (`/staff/staff/` remains as a legacy alias) |
 | `/staff/visitor-stats/` | Public | JSON visitor totals used by the live overview counter |
 | `/accounts/login/` | Public | Django class-based login route |
 | `/accounts/logout/` | Authenticated | Django class-based logout route |
@@ -441,7 +439,6 @@ Inline formsets connect the related records to a startup:
 Templates are stored in `templates/`.
 
 | Template | Responsibility |
-|---|---|
 | `base.html` | Shared layout, sidebar, top bar, navigation, authentication controls, CSS, and JavaScript loading; the top bar shows DTBi, BUNI, and Fursa Hub logos |
 | `landing.html` | Public BUNI–DTBi overview with live totals, startup search, full-background staff slideshow with centered text overlay, and visitor pulse |
 | `index.html` | Authenticated home page with recent startups and registration information |

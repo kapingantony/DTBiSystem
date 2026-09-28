@@ -9,10 +9,10 @@
         <div><strong>{{ page_obj.paginator.count }}</strong> matching mentors of {{ mentor_count }} active</div>
         {% if user.profile.is_admin %}<a class="btn btn-primary" href="{% url 'admin:staff_mentor_add' %}"><i class="fas fa-plus"></i> Add Mentor</a>{% endif %}
     </div>
-    <form method="get" class="filter-bar" role="search"><input class="form-input" type="search" name="q" value="{{ search_query }}" placeholder="Search name, skills, topic, role, education, or email"><select class="filter-select" name="role"><option value="">All mentor roles</option>{% for role in roles %}<option value="{{ role }}" {% if role_filter == role %}selected{% endif %}>{{ role }}</option>{% endfor %}</select><button class="btn btn-outline" type="submit">Search</button>{% if search_query or role_filter %}<a class="btn btn-outline" href="{% url 'staff:mentors' %}">Clear</a>{% endif %}</form>
+    <form method="get" class="filter-bar" role="search"><input class="form-input" type="search" name="q" value="{{ search_query }}" placeholder="Search name, skills, topic, role, education, or email"><select class="filter-select" name="role"><option value="">All mentor roles</option>{% for role in roles %}<option value="{{ role }}" {% if role_filter == role %}selected{% endif %}>{{ role }}</option>{% endfor %}</select><button class="btn btn-outline" type="submit">Search</button>{% if search_query or role_filter %}<a class="btn btn-outline" href="{% url 'mentors' %}">Clear</a>{% endif %}</form>
     <div class="person-grid">
         {% for mentor in mentors %}
-        <a href="{% url 'staff:mentor_profile' pk=mentor.pk %}" class="person-card" style="text-decoration:none;color:inherit;">
+        <a href="{% url 'mentor_profile' pk=mentor.pk %}" class="person-card" style="text-decoration:none;color:inherit;">
             <div class="person-card-top"><div class="person-avatar blue">{{ mentor.name|slice:":2"|upper }}</div><div><div class="person-name">{{ mentor.name }}</div><div class="person-role">{{ mentor.role|default:"BUNI mentor" }}</div></div></div>
             <div class="person-details">
                 {% if mentor.education_level %}<div class="person-detail"><i class="fas fa-graduation-cap"></i> {{ mentor.education_level }}</div>{% endif %}

@@ -16,7 +16,7 @@
     <div class="table-wrap"><table><thead><tr><th>When</th><th>Mentor</th><th>Startup</th><th>Arrangement</th><th>Topics</th><th>Update</th></tr></thead><tbody>
     {% for session in sessions %}<tr>
         <td>{{ session.date|date:'D, d M Y' }}<br><strong>{{ session.start_time|time:'H:i' }}</strong><br>{{ session.hours }} hours</td>
-        <td><a href="{% url 'staff:mentor_profile' pk=session.mentor_id %}">{{ session.mentor.name }}</a></td>
+        <td><a href="{% url 'mentor_profile' pk=session.mentor_id %}">{{ session.mentor.name }}</a></td>
         <td><a href="{% url 'staff:startup_profile' slug=session.startup.slug %}">{{ session.startup.name }}</a></td>
         <td>{{ session.get_status_display }}<br>{% if session.meeting_url %}<a href="{{ session.meeting_url }}" target="_blank" rel="noopener noreferrer">Join link</a>{% else %}{{ session.meeting_location }}{% endif %}<br><a href="{% url 'staff:mentor_session_ical' pk=session.pk %}">Add to calendar (.ics)</a></td>
         <td>{{ session.topics|default:'Not specified'|truncatechars:180 }}</td>

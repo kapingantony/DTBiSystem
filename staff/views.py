@@ -246,9 +246,9 @@ def user_login(request):
         if profile.user_type == 'staff':
             return redirect('staff:staff_list')
         if profile.user_type == 'mentor' and hasattr(user, 'mentor_record'):
-            return redirect('staff:mentor_profile', pk=user.mentor_record.pk)
+            return redirect('mentor_profile', pk=user.mentor_record.pk)
         if profile.user_type == 'investor' and hasattr(user, 'investor_record'):
-            return redirect('staff:investor_profile', pk=user.investor_record.pk)
+            return redirect('investor_profile', pk=user.investor_record.pk)
         if profile.is_startup:
             return redirect('staff:startup_profile', slug=profile.startup.slug) if profile.startup else redirect('staff:startup_create')
         return redirect('staff:dashboard')
