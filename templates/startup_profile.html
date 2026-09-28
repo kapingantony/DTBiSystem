@@ -174,6 +174,7 @@
     <button class="profile-tab active" data-tab="edit">Your Details</button>
     {% else %}
     <button class="profile-tab active" data-tab="overview">Overview</button>
+    {% if can_view_private %}
     <button class="profile-tab" data-tab="founders">Founders</button>
     <button class="profile-tab" data-tab="opportunities">Opportunities</button>
     <button class="profile-tab" data-tab="incubation">Incubation</button>
@@ -184,6 +185,7 @@
     <button class="profile-tab" data-tab="services">Services</button>
     {% if can_edit %}
     <button class="profile-tab" data-tab="edit">Edit Profile</button>
+    {% endif %}
     {% endif %}
     {% endif %}
 </div>
@@ -238,6 +240,7 @@
 </div>
 
 <!-- Founders Tab -->
+{% if can_view_private %}
 <div class="tab-panel" id="tab-founders">
     {% if startup.founders.exists %}
     <div class="founder-grid">
@@ -450,6 +453,8 @@
 </div>
 {% endif %}
 
+{% endif %}
+
 <!-- Edit Profile Tab -->
 <div class="tab-panel{% if creating %} active{% endif %}" id="tab-edit">
     {% if can_edit %}
@@ -468,7 +473,7 @@
                 </div>
                 <div class="form-group">
                     <label for="{{ form.startup_type.id_for_label }}">Type</label>
-                    {{ form.startup_type }}
+                    {% if show_admin_fields %}{{ form.startup_type }}{% else %}<div class="form-input">{{ startup.get_startup_type_display|default:'Set from your account type' }}</div>{% endif %}
                 </div>
             </div>
             <div class="form-group">

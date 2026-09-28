@@ -124,6 +124,7 @@ class Mentor(models.Model):
     skills = models.TextField(blank=True)
     training_topics = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='mentor_record')
     source = models.CharField(max_length=255, default='BUNI')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -145,6 +146,7 @@ class Investor(models.Model):
     description = models.TextField(blank=True)
     investment_interest = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=50, default='active')
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='investor_record')
     source = models.CharField(max_length=255, default='BUNI')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -362,6 +364,8 @@ class UserProfile(models.Model):
     USER_TYPE_CHOICES = [
         ('admin', 'Admin'),
         ('staff', 'Staff'),
+        ('mentor', 'Mentor'),
+        ('investor', 'Investor'),
         ('individual', 'Individual Startup'),
         ('public', 'Public Startup'),
     ]

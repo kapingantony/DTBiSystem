@@ -1,4 +1,4 @@
-from .models import Investor, Mentor, PageVisit, Startup, UserProfile
+from .models import Investor, Mentor, PageVisit, Partnership, Startup, UserProfile
 
 
 def people_counts(request):
@@ -17,7 +17,11 @@ def admin_page_visit_alerts(request):
     if user and user.is_authenticated:
         if user.is_superuser or UserProfile.objects.filter(user=user, user_type='admin').exists():
             unread = PageVisit.objects.filter(is_read=False).count()
-    return {'unread_page_visit_count': unread}
+    incoming_messages = 0
+    if user and user.is_authenticated:
+        if user.is_superuser or UserProfile.objects.filter(user=user, user_type__in=('admin', 'staff')).exists():
+            incoming_messages = Partnership.objects.filter(status='pending').count()
+    return {'unread_page_visit_count': unread, 'incoming_message_count': incoming_messages}
 
 
 def user_theme(request):

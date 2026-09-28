@@ -99,11 +99,21 @@ class MentorForm(forms.ModelForm):
         model = Mentor
         fields = ['name', 'email', 'gender', 'education_level', 'phone', 'role', 'skills', 'training_topics', 'is_active']
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            field.widget.attrs['class'] = 'form-textarea' if name in {'skills', 'training_topics'} else 'form-input'
+
 
 class InvestorForm(forms.ModelForm):
     class Meta:
         model = Investor
         fields = ['name', 'organization', 'email', 'phone', 'website', 'description', 'investment_interest', 'status']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            field.widget.attrs['class'] = 'form-textarea' if name == 'description' else 'form-input'
 
 
 FounderFormSet = forms.inlineformset_factory(
@@ -244,6 +254,18 @@ class PartnershipForm(forms.ModelForm):
         self.fields['related_startup'].required = False
         self.fields['related_startup'].queryset = Startup.objects.filter(status='active').order_by('name')
 
+
+class ManagedUserForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'is_active']
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-input'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-input'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-input'}),
+            'email': forms.EmailInput(attrs={'class': 'form-input'}),
+            'is_active': forms.CheckboxInput(),
+        }
 
 class MentorEngagementScheduleForm(forms.ModelForm):
     status = forms.ChoiceField(

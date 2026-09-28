@@ -1,4 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
+from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
@@ -6,6 +8,8 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 
@@ -19,7 +23,7 @@ from .forms import (
     StartupForm, StartupOwnerForm, FounderFormSet, OpportunityFormSet,
     FundingFormSet, KPIFormSet, PitchDeckFormSet,
     ServiceOfferedFormSet, PartnershipForm, AccountForm,
-    ProfilePreferencesForm
+    ProfilePreferencesForm, MentorForm, InvestorForm, ManagedUserForm,
 )
 from .data_views import record_page_visit
 
@@ -86,7 +90,7 @@ def settings_view(request):
 def landing(request):
     """Public system overview with live platform statistics."""
     search_query = request.GET.get('q', '').strip()
-    startup_results = Startup.objects.all()
+    startup_results = Startup.objects.filter(status='active', directory_visible=True)
     if search_query:
         startup_results = startup_results.filter(
             Q(name__icontains=search_query)
@@ -102,11 +106,15 @@ def landing(request):
         'opportunities': Opportunity.objects.count(),
         'funding': Funding.objects.aggregate(total=Sum('amount'))['total'] or 0,
     }
+    upcoming_opportunities = Opportunity.objects.filter(
+        status='open', startup__status='active', startup__directory_visible=True,
+    ).filter(Q(deadline__isnull=True) | Q(deadline__gte=timezone.localdate())).select_related('startup').order_by('deadline', 'title')[:8]
     return render(request, 'landing.html', {
         'search_query': search_query,
         'startup_results': startup_results[:8],
         'visitor_counts': get_visitor_counts(),
         'system_stats': system_stats,
+        'upcoming_opportunities': upcoming_opportunities,
     })
 
 
@@ -132,6 +140,9 @@ def index(request):
 
 def startups(request):
     startup_list = Startup.objects.filter(directory_visible=True)
+    is_admin = request.user.is_authenticated and (request.user.is_superuser or get_profile(request.user).is_admin)
+    if not is_admin:
+        startup_list = startup_list.filter(status='active')
     # Keep the Edutech record as the final clean legacy entry in the directory.
     from django.db.models import Case, IntegerField, Value, When
     startup_list = startup_list.order_by(
@@ -210,27 +221,15 @@ def user_login(request):
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
 
-        if user.is_superuser:
+        if user.is_superuser and profile.user_type != 'admin':
             profile.user_type = 'admin'
-            user.is_staff = True
-            user.save(update_fields=['is_staff'])
-        elif user.is_staff:
+            profile.save(update_fields=['user_type'])
+        elif user.is_staff and profile.user_type not in ('admin', 'staff'):
             profile.user_type = 'staff'
-        elif requested_type in ('public', 'individual'):
-            profile.user_type = requested_type
-        else:
-            profile.user_type = 'public'
+            profile.save(update_fields=['user_type'])
 
-        profile.save(update_fields=['user_type'])
-
-        if requested_type == 'admin' and not user.is_superuser:
-            messages.error(request, 'This account is not authorized for Admin access.')
-            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
-        if requested_type == 'staff' and profile.user_type != 'staff':
-            messages.error(request, 'This account is not authorized for Staff access.')
-            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
-        if requested_type in ('public', 'individual') and profile.user_type not in ('public', 'individual'):
-            messages.error(request, 'This account is not registered as a startup user.')
+        if profile.user_type != requested_type:
+            messages.error(request, 'Choose the user type assigned to this account.')
             return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
 
         login(request, user)
@@ -238,10 +237,18 @@ def user_login(request):
         profile.last_login_ip = request.META.get('REMOTE_ADDR', '0.0.0.0')
         profile.save(update_fields=['login_count', 'last_login_ip'])
 
+        next_url = request.POST.get('next', '')
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+            return redirect(next_url)
+
         if profile.user_type == 'admin':
             return redirect('staff:dashboard')
         if profile.user_type == 'staff':
             return redirect('staff:staff_list')
+        if profile.user_type == 'mentor' and hasattr(user, 'mentor_record'):
+            return redirect('staff:mentor_profile', pk=user.mentor_record.pk)
+        if profile.user_type == 'investor' and hasattr(user, 'investor_record'):
+            return redirect('staff:investor_profile', pk=user.investor_record.pk)
         if profile.is_startup:
             return redirect('staff:startup_profile', slug=profile.startup.slug) if profile.startup else redirect('staff:startup_create')
         return redirect('staff:dashboard')
@@ -289,6 +296,12 @@ def dashboard(request):
                 'kpi_count': startup.kpis.count(),
                 'opportunity_count': startup.opportunities.count(),
             })
+    elif profile.user_type == 'mentor' and hasattr(request.user, 'mentor_record'):
+        mentor = request.user.mentor_record
+        context.update({'mentor': mentor, 'my_sessions': mentor.engagements.select_related('startup').order_by('-date')[:10]})
+    elif profile.user_type == 'investor' and hasattr(request.user, 'investor_record'):
+        investor = request.user.investor_record
+        context.update({'investor': investor, 'my_fundings': investor.fundings.select_related('startup').order_by('-created_at')[:10]})
 
     return render(request, 'dashboard.html', context)
 
@@ -352,7 +365,7 @@ def register(request):
             messages.success(request, 'Account created successfully. Please log in with your startup role.')
             return redirect('staff:user_login')
 
-    user_types = [c for c in UserProfile.USER_TYPE_CHOICES if c[0] not in ('admin', 'staff')]
+    user_types = [c for c in UserProfile.USER_TYPE_CHOICES if c[0] in ('public', 'individual')]
     return render(request, 'registration/register.html', {'user_types': user_types})
 
 
@@ -380,7 +393,10 @@ def startup_create(request):
                 and funding_formset.is_valid() and kpi_formset.is_valid()
                 and pitch_formset.is_valid() and service_formset.is_valid()):
             with transaction.atomic():
-                startup = form.save()
+                startup = form.save(commit=False)
+                startup.startup_type = profile.user_type if profile.user_type in ('public', 'individual') else 'individual'
+                startup.status = 'pending' if startup.startup_type == 'individual' else 'active'
+                startup.save()
                 founder_formset.instance = startup
                 opportunity_formset.instance = startup
                 funding_formset.instance = startup
@@ -444,6 +460,9 @@ def startup_profile(request, slug):
 
     # Only the owner of the startup (or a hub admin) may change it.
     can_edit = profile.is_admin or request.user.is_staff or profile.startup_id == startup.id
+    can_view_private = can_edit
+    if startup.status == 'pending' and not can_edit:
+        return redirect(f"{reverse('staff:user_login')}?next={request.get_full_path()}")
     can_view_mentor_sessions = profile.is_admin or profile.is_staff_role or profile.startup_id == startup.id
 
     if request.method == 'POST':
@@ -499,6 +518,7 @@ def startup_profile(request, slug):
         'total_funding': total_funding,
         'creating': False,
         'can_edit': can_edit,
+        'can_view_private': can_view_private,
         'show_admin_fields': profile.is_admin,
         'upcoming_mentor_sessions': startup.mentor_engagements.filter(
             status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate()
@@ -595,3 +615,190 @@ def staff_list(request):
         return redirect('staff:dashboard')
     staff_users = User.objects.filter(is_staff=True).select_related('profile').order_by('username')
     return render(request, 'staff_list.html', {'staff_users': staff_users})
+
+
+def _require_account_admin(request):
+    profile = get_profile(request.user)
+    if not (request.user.is_superuser or profile.is_admin):
+        raise PermissionDenied
+
+
+def _first_and_last(full_name):
+    parts = (full_name or '').strip().split()
+    return (parts[0], ' '.join(parts[1:])) if parts else ('Member', '')
+
+
+def _unique_username(preferred):
+    base = slugify(preferred) or 'member'
+    candidate, suffix = base, 2
+    while User.objects.filter(username=candidate).exists():
+        candidate = f'{base}{suffix}'
+        suffix += 1
+    return candidate
+
+
+def _provision_record_account(record, role):
+    """Create a first-name login for an admin-managed person or startup record."""
+    if role == 'startup':
+        if UserProfile.objects.filter(startup=record).exists():
+            return None
+        full_name = record.name
+        email = record.contact_email
+        user_type = record.startup_type
+    else:
+        if record.user_id:
+            return record.user.username
+        full_name = record.name
+        email = record.email
+        user_type = role
+    first_name, last_name = _first_and_last(full_name)
+    username = _unique_username(first_name)
+    user = User.objects.create_user(
+        username=username, email=email or '', password='123',
+        first_name=first_name, last_name=last_name,
+    )
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.user_type = user_type
+    if role == 'startup':
+        profile.startup = record
+        profile.company_name = record.name
+        profile.save(update_fields=['user_type', 'startup', 'company_name'])
+    else:
+        profile.save(update_fields=['user_type'])
+        record.user = user
+        record.save(update_fields=['user'])
+    return username
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def account_management(request):
+    _require_account_admin(request)
+    if request.method == 'POST' and request.POST.get('action') == 'provision_existing':
+        created = []
+        for kind, queryset in (
+            ('startup', Startup.objects.all()),
+            ('mentor', Mentor.objects.filter(is_active=True)),
+            ('investor', Investor.objects.filter(status='active')),
+        ):
+            for record in queryset.iterator():
+                username = _provision_record_account(record, kind)
+                if username:
+                    created.append(f'{record}: {username}')
+        messages.success(request, f'Created {len(created)} login account(s) using the shared initial password 123.')
+        return redirect('staff:account_management')
+
+    return render(request, 'account_management.html', {
+        'startups': Startup.objects.select_related().all()[:100],
+        'mentors': Mentor.objects.all()[:100],
+        'investors': Investor.objects.all()[:100],
+        'staff_users': User.objects.filter(is_staff=True, is_superuser=False).select_related('profile').order_by('first_name', 'username'),
+        'pending_startups': Startup.objects.filter(status='pending').count(),
+        'counts': {
+            'startups': Startup.objects.count(), 'mentors': Mentor.objects.count(),
+            'investors': Investor.objects.count(),
+            'staff': User.objects.filter(is_staff=True, is_superuser=False).count(),
+        },
+    })
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def account_add(request, kind):
+    _require_account_admin(request)
+    forms_by_kind = {'startup': StartupForm, 'mentor': MentorForm, 'investor': InvestorForm, 'staff': ManagedUserForm}
+    if kind not in forms_by_kind:
+        raise PermissionDenied
+    form = forms_by_kind[kind](request.POST or None, request.FILES or None)
+    if request.method == 'POST' and form.is_valid():
+        if kind == 'staff':
+            user = form.save(commit=False)
+            user.first_name = user.first_name.strip()
+            user.username = _unique_username(user.first_name or user.username)
+            user.is_staff = True
+            user.is_superuser = False
+            user.set_password('123')
+            user.save()
+            profile = get_profile(user)
+            profile.user_type = 'staff'
+            profile.save(update_fields=['user_type'])
+            messages.success(request, f'Staff account created. Username: {user.username}; initial password: 123.')
+        else:
+            record = form.save(commit=False)
+            if kind == 'startup':
+                record.startup_type = 'public'
+                record.status = 'active'
+                record.directory_visible = True
+            record.save()
+            username = _provision_record_account(record, kind)
+            messages.success(request, f'{record} created. Username: {username}; initial password: 123.')
+        return redirect('staff:account_management')
+    return render(request, 'account_form.html', {'form': form, 'kind': kind, 'heading': f'Add {kind.title()}', 'is_new': True})
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def account_edit(request, kind, pk):
+    _require_account_admin(request)
+    models_by_kind = {'startup': (Startup, StartupForm), 'mentor': (Mentor, MentorForm), 'investor': (Investor, InvestorForm), 'staff': (User, ManagedUserForm)}
+    if kind not in models_by_kind:
+        raise PermissionDenied
+    model, form_class = models_by_kind[kind]
+    queryset = User.objects.filter(is_staff=True, is_superuser=False) if kind == 'staff' else model.objects.all()
+    record = get_object_or_404(queryset, pk=pk)
+    form = form_class(request.POST or None, request.FILES or None, instance=record)
+    if request.method == 'POST' and form.is_valid():
+        saved = form.save()
+        if kind == 'startup':
+            for profile in saved.users.select_related('user'):
+                profile.user_type = saved.startup_type
+                profile.company_name = saved.name
+                profile.save(update_fields=['user_type', 'company_name'])
+        elif kind in ('mentor', 'investor') and saved.user_id:
+            first_name, last_name = _first_and_last(saved.name)
+            saved.user.first_name, saved.user.last_name, saved.user.email = first_name, last_name, saved.email
+            saved.user.is_active = saved.is_active if kind == 'mentor' else saved.status == 'active'
+            saved.user.save(update_fields=['first_name', 'last_name', 'email', 'is_active'])
+        messages.success(request, f'{saved} updated.')
+        return redirect('staff:account_management')
+    return render(request, 'account_form.html', {'form': form, 'kind': kind, 'heading': f'Edit {kind.title()}', 'is_new': False})
+
+
+@login_required
+@require_http_methods(['POST'])
+def account_delete(request, kind, pk):
+    _require_account_admin(request)
+    if kind == 'staff':
+        record = get_object_or_404(User, pk=pk, is_staff=True, is_superuser=False)
+    elif kind == 'startup':
+        record = get_object_or_404(Startup, pk=pk)
+    elif kind == 'mentor':
+        record = get_object_or_404(Mentor, pk=pk)
+    elif kind == 'investor':
+        record = get_object_or_404(Investor, pk=pk)
+    else:
+        raise PermissionDenied
+    label = str(record)
+    if kind != 'staff':
+        linked_user = getattr(record, 'user', None) if kind in ('mentor', 'investor') else UserProfile.objects.filter(startup=record).select_related('user').first()
+        if kind == 'startup' and linked_user:
+            linked_user = linked_user.user
+        if linked_user:
+            linked_user.delete()
+    record.delete()
+    messages.success(request, f'{label} deleted.')
+    return redirect('staff:account_management')
+
+
+@login_required
+@require_http_methods(['POST'])
+def startup_decision(request, pk, decision):
+    _require_account_admin(request)
+    startup = get_object_or_404(Startup, pk=pk)
+    if decision not in ('approve', 'reject'):
+        raise PermissionDenied
+    startup.status = 'active' if decision == 'approve' else 'inactive'
+    startup.directory_visible = decision == 'approve'
+    startup.save(update_fields=['status', 'directory_visible', 'updated_at'])
+    messages.success(request, f'{startup.name} {"approved and published" if decision == "approve" else "rejected"}.')
+    return redirect('staff:account_management')

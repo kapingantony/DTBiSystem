@@ -31,6 +31,7 @@
 
         <form method="post" class="auth-form">
             {% csrf_token %}
+            {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
             
             <div class="form-group">
                 <label for="username">Username</label>
@@ -46,10 +47,7 @@
             <div class="form-group">
                 <label for="user_type">User Type</label>
                 <select name="user_type" id="user_type" class="form-select">
-                    <option value="admin">Admin</option>
-                    <option value="staff">Staff</option>
-                    <option value="individual">Individual Startup</option>
-                    <option value="public">Public Startup</option>
+                    {% for value, label in user_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
                 </select>
             </div>
             

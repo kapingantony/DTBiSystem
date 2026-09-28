@@ -16,10 +16,10 @@
             <div class="person-card-top"><div class="person-avatar blue">{{ mentor.name|slice:":2"|upper }}</div><div><div class="person-name">{{ mentor.name }}</div><div class="person-role">{{ mentor.role|default:"BUNI mentor" }}</div></div></div>
             <div class="person-details">
                 {% if mentor.education_level %}<div class="person-detail"><i class="fas fa-graduation-cap"></i> {{ mentor.education_level }}</div>{% endif %}
-                {% if mentor.email %}<div class="person-detail"><i class="fas fa-envelope"></i> {{ mentor.email }}</div>{% endif %}
                 {% if mentor.skills %}<div class="person-detail"><i class="fas fa-wand-magic-sparkles"></i> {{ mentor.skills|truncatechars:140 }}</div>{% endif %}
             </div>
             {% if mentor.training_topics %}<div class="person-tags"><span class="tag">{{ mentor.training_topics|truncatechars:70 }}</span></div>{% endif %}
+            <span class="btn btn-outline btn-sm" style="margin-top:14px">More <i class="fas fa-arrow-right"></i></span>
         </a>
         {% empty %}<p class="overview-empty">No mentor records have been added yet.</p>{% endfor %}
     </div>

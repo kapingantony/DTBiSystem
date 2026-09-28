@@ -99,9 +99,9 @@
                 {% endif %}
                 {% if user.is_authenticated and user.profile.is_admin %}
                 <div class="nav-item">
-                    <a href="{% url 'staff:staff_list' %}" class="nav-link {% if request.resolver_match.url_name == 'staff_list' %}active{% endif %}">
+                    <a href="{% url 'staff:account_management' %}" class="nav-link {% if request.resolver_match.url_name == 'account_management' or request.resolver_match.url_name == 'account_add' or request.resolver_match.url_name == 'account_edit' %}active{% endif %}">
                         <i class="fas fa-user-shield"></i>
-                        <span>Staff Accounts</span>
+                        <span>Account Management</span>
                     </a>
                 </div>
                 {% endif %}
@@ -174,10 +174,10 @@
                         <i class="fas fa-bell"></i>
                         {% if unread_page_visit_count %}<span class="dot" aria-label="{{ unread_page_visit_count }} unread visits"></span><span class="badge" style="position:absolute;top:-6px;right:-6px;">{{ unread_page_visit_count }}</span>{% endif %}
                     </a>
-                    {% else %}<button class="topbar-btn" title="Notifications"><i class="fas fa-bell"></i></button>{% endif %}
-                    <button class="topbar-btn" title="Messages">
-                        <i class="fas fa-envelope"></i>
-                    </button>
+                    {% elif user.is_authenticated %}<a class="topbar-btn" title="Notifications" href="{% url 'staff:dashboard' %}"><i class="fas fa-bell"></i></a>{% else %}<a class="topbar-btn" title="Sign in for notifications" href="{% url 'staff:user_login' %}"><i class="fas fa-bell"></i></a>{% endif %}
+                    {% if user.is_authenticated and user.profile.is_staff_role %}
+                    <a class="topbar-btn" title="Incoming partnership messages" href="{% url 'staff:partnership_inbox' %}" style="position:relative"><i class="fas fa-envelope"></i>{% if incoming_message_count %}<span class="badge" style="position:absolute;top:-6px;right:-6px">{{ incoming_message_count }}</span>{% endif %}</a>
+                    {% else %}<a class="topbar-btn" title="Send a partnership message" href="{% url 'staff:partnership_form' %}"><i class="fas fa-envelope"></i></a>{% endif %}
                 </div>
             </header>
 

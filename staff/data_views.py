@@ -456,18 +456,73 @@ def _report_pdf(data):
     return output.getvalue()
 
 
+def _filter_report_kind(data, kind):
+    """Keep only the selected report area in a downloaded export."""
+    groups = {
+        'startups': {
+            'new_startups', 'previous_startups', 'activity_signal', 'startups_by_status',
+            'status_changes', 'funding', 'funding_totals', 'kpi_observations',
+        },
+        'mentors': {
+            'new_mentors', 'mentor_sessions', 'mentor_hours', 'mentor_rows',
+            'scheduled_mentor_sessions', 'scheduled_mentor_rows',
+            'mentor_session_changes', 'cancelled_mentor_sessions',
+        },
+        'investors': {'new_investors', 'funding', 'funding_totals'},
+        'partnerships': {
+            'new_partnerships', 'active_partnership_pipeline', 'completed_partnerships',
+            'partnership_statuses', 'partnership_rows', 'partnership_history',
+        },
+        'participants': {
+            'participant_journeys_current', 'participant_journeys_by_stage',
+            'participant_journey_changes', 'participant_support_total',
+            'participant_support_rows', 'participant_support_by_type',
+            'participant_outcome_snapshots', 'participant_outcome_comparisons',
+            'participant_outcome_changes', 'participant_followups_due',
+            'participant_followups_completed',
+        },
+        'activity': {'page_visits', 'page_visit_total'},
+    }
+    if kind == 'all' or kind not in groups:
+        return
+    keep = groups[kind] | {'start_date', 'end_date', 'executive_summary', 'executive_summary_source'}
+    for key, value in list(data.items()):
+        if key in keep:
+            continue
+        if isinstance(value, list):
+            data[key] = []
+        elif isinstance(value, dict):
+            data[key] = {'full_time_jobs': 0, 'part_time_jobs': 0, 'customers_or_users': 0, 'revenue_by_currency': {}} if key == 'participant_outcome_changes' else {}
+        elif isinstance(value, (int, float)):
+            data[key] = 0
+        elif key == 'activity_signal':
+            data[key] = 'No activity signal for this report type.'
+        elif isinstance(value, str):
+            data[key] = ''
+
+
 @staff_or_admin_required
 def data_reports(request):
     period, start, end = _period_dates(request)
     data = report_data(start, end)
+    report_kind = request.GET.get('report', 'all')
+    report_kinds = (
+        ('all', 'All activity'), ('startups', 'Startups'), ('mentors', 'Mentors'),
+        ('investors', 'Investors and funding'), ('partnerships', 'Partnerships'),
+        ('participants', 'Participant outcomes'), ('activity', 'System activity'),
+    )
+    if report_kind not in {value for value, _label in report_kinds}:
+        report_kind = 'all'
+    fmt = request.GET.get('format')
+    if fmt in ('xlsx', 'pdf'):
+        _filter_report_kind(data, report_kind)
     summary = summarize_report(data)
     data['executive_summary'] = summary['text']
     data['executive_summary_source'] = summary['source']
     data['ai_enabled'] = summary['ai_enabled']
-    fmt = request.GET.get('format')
     if fmt == 'xlsx':
         response = HttpResponse(_report_xlsx(data), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="dtbi-report-{start}-{end}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="dtbi-{report_kind}-report-{start}-{end}.xlsx"'
         return response
     if fmt == 'pdf':
         try:
@@ -476,9 +531,9 @@ def data_reports(request):
             messages.error(request, '; '.join(exc.messages))
             return redirect('staff:data_reports')
         response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="dtbi-report-{start}-{end}.pdf"'
+        response['Content-Disposition'] = f'attachment; filename="dtbi-{report_kind}-report-{start}-{end}.pdf"'
         return response
-    data.update({'period': period, 'presets': ('week', 'month', 'half_year', 'year', 'custom')})
+    data.update({'period': period, 'presets': ('week', 'month', 'half_year', 'year', 'custom'), 'report_kinds': report_kinds, 'report_kind': report_kind})
     return render(request, 'data_reports.html', data)
 
 
@@ -509,11 +564,16 @@ def page_visit_admin(request):
     })
 
 
-@staff_or_admin_required
+@login_required
 @require_http_methods(['GET', 'POST'])
 def mentor_sessions(request):
+    profile = UserProfile.objects.filter(user=request.user).first()
+    is_staff_admin = request.user.is_superuser or bool(profile and profile.user_type in ('admin', 'staff'))
+    mentor_record = getattr(request.user, 'mentor_record', None)
+    if not is_staff_admin and (not profile or profile.user_type != 'mentor' or mentor_record is None):
+        raise PermissionDenied
     form = MentorEngagementScheduleForm(initial={'mentor': request.GET.get('mentor')})
-    if request.method == 'POST' and request.POST.get('action') == 'schedule':
+    if is_staff_admin and request.method == 'POST' and request.POST.get('action') == 'schedule':
         form = MentorEngagementScheduleForm(request.POST)
         if form.is_valid():
             session = form.save(commit=False)
@@ -532,7 +592,8 @@ def mentor_sessions(request):
             messages.success(request, f'Session scheduled with {session.mentor} for {session.startup} on {session.date}.')
             return redirect('staff:mentor_sessions')
     elif request.method == 'POST' and request.POST.get('action') == 'update':
-        session = get_object_or_404(MentorEngagement, pk=request.POST.get('session_id'))
+        session_scope = MentorEngagement.objects.all() if is_staff_admin else MentorEngagement.objects.filter(mentor=mentor_record)
+        session = get_object_or_404(session_scope, pk=request.POST.get('session_id'))
         new_status = request.POST.get('status', '')
         if new_status not in dict(MentorEngagement.STATUS_CHOICES):
             messages.error(request, 'Choose a valid session status.')
@@ -560,9 +621,13 @@ def mentor_sessions(request):
                 messages.error(request, '; '.join(exc.messages))
         return redirect(request.get_full_path())
 
-    queryset = MentorEngagement.objects.filter(status__in=('scheduled', 'confirmed')).select_related(
+    queryset = MentorEngagement.objects.select_related(
         'mentor', 'startup', 'scheduled_by'
     ).order_by('date', 'start_time', 'mentor__name')
+    if is_staff_admin:
+        queryset = queryset.filter(status__in=('scheduled', 'confirmed'))
+    else:
+        queryset = queryset.filter(mentor=mentor_record)
     today = timezone.localdate()
     window = request.GET.get('window', '')
     if window == 'upcoming':
@@ -585,14 +650,19 @@ def mentor_sessions(request):
         'search': search,
         'window': window,
         'page_query': query_params.urlencode(),
-        'upcoming_count': MentorEngagement.objects.filter(
+        'upcoming_count': (MentorEngagement.objects.filter(mentor=mentor_record) if not is_staff_admin else MentorEngagement.objects.all()).filter(
             status__in=('scheduled', 'confirmed'), date__gte=today
         ).count(),
-        'overdue_count': MentorEngagement.objects.filter(
+        'overdue_count': (MentorEngagement.objects.filter(mentor=mentor_record) if not is_staff_admin else MentorEngagement.objects.all()).filter(
             status__in=('scheduled', 'confirmed'), date__lt=today
         ).count(),
         'status_choices': MentorEngagement.STATUS_CHOICES,
-        'recent_session_history': MentorEngagementHistory.objects.select_related(
+        'is_staff_admin': is_staff_admin,
+        'recent_session_history': MentorEngagementHistory.objects.filter(
+            engagement__mentor=mentor_record
+        ).select_related(
+            'engagement__mentor', 'engagement__startup', 'changed_by'
+        )[:30] if not is_staff_admin else MentorEngagementHistory.objects.select_related(
             'engagement__mentor', 'engagement__startup', 'changed_by'
         )[:30],
     })
@@ -744,6 +814,8 @@ def mentor_session_ical(request, pk):
 
 @require_http_methods(['GET', 'POST'])
 def mentor_profile(request, pk):
+    if not request.user.is_authenticated:
+        return redirect(f"/staff/login/?next=/staff/mentors/{pk}/")
     mentor = get_object_or_404(Mentor, pk=pk, is_active=True)
     if request.method == 'POST' and request.user.is_authenticated:
         if not (request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()):
@@ -775,13 +847,16 @@ def mentor_profile(request, pk):
         except (ValidationError, ValueError, Startup.DoesNotExist) as exc:
             message = '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Enter a valid startup, date, and hours.'
             messages.error(request, message)
+    is_owner = getattr(request.user, 'mentor_record_id', None) == mentor.pk
+    is_staff_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
+    if not (is_owner or is_staff_admin):
+        return redirect('staff:mentors')
     record_page_visit(request, 'mentor', mentor.pk, mentor.name)
     return render(request, 'mentor_profile.html', {
         'mentor': mentor,
         'startups': Startup.objects.filter(status='active').order_by('name'),
-        'can_record_session': request.user.is_authenticated and (
-            request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
-        ),
+        'can_record_session': is_staff_admin,
+        'can_view_activity': is_owner or is_staff_admin,
         'sessions': mentor.engagements.filter(status='completed').select_related('startup')[:20] if (
             request.user.is_authenticated and (
                 request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
@@ -796,7 +871,13 @@ def mentor_profile(request, pk):
 
 
 def investor_profile(request, pk):
+    if not request.user.is_authenticated:
+        return redirect(f"/staff/login/?next=/staff/investors/{pk}/")
     investor = get_object_or_404(Investor, pk=pk, status='active')
+    profile = UserProfile.objects.filter(user=request.user).first()
+    is_owner = getattr(request.user, 'investor_record_id', None) == investor.pk
+    if not (request.user.is_superuser or (profile and profile.user_type in ('admin', 'staff')) or is_owner):
+        return redirect('staff:investors')
     record_page_visit(request, 'investor', investor.pk, investor.organization or investor.name)
     return render(request, 'investor_profile.html', {
         'investor': investor,

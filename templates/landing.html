@@ -83,6 +83,16 @@
     </section>
     {% endif %}
 
+    <section class="overview-section-head" id="upcoming-opportunities">
+        <div><span class="overview-kicker">What is happening</span><h2>Upcoming opportunities</h2><p>Open opportunities published by startups in the system.</p></div>
+        <a class="overview-clear-search" href="{% url 'staff:startups' %}">Explore startups</a>
+    </section>
+    <section class="overview-capability-grid" aria-label="Upcoming opportunities">
+        {% for opportunity in upcoming_opportunities %}
+        <article class="card"><span class="badge">{{ opportunity.get_opportunity_type_display }}</span><h3>{{ opportunity.title }}</h3><p>{{ opportunity.description|default:'Details are available in the startup profile.'|truncatechars:150 }}</p><p class="text-muted">{{ opportunity.startup.name }}{% if opportunity.deadline %} · Closes {{ opportunity.deadline|date:'d M Y' }}{% endif %}</p><a class="btn btn-outline btn-sm" href="{% url 'staff:startup_profile' slug=opportunity.startup.slug %}">More details</a></article>
+        {% empty %}<p class="overview-empty">No upcoming opportunities have been published yet.</p>{% endfor %}
+    </section>
+
     <section class="overview-capabilities">
         <div class="overview-section-head"><div><span class="overview-kicker">What this system manages</span><h2>Built around real work</h2></div></div>
         <div class="overview-capability-grid">
