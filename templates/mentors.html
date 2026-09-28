@@ -19,7 +19,7 @@
                 {% if mentor.skills %}<div class="person-detail"><i class="fas fa-wand-magic-sparkles"></i> {{ mentor.skills|truncatechars:140 }}</div>{% endif %}
             </div>
             {% if mentor.training_topics %}<div class="person-tags"><span class="tag">{{ mentor.training_topics|truncatechars:70 }}</span></div>{% endif %}
-            <span class="btn btn-outline btn-sm" style="margin-top:14px">More <i class="fas fa-arrow-right"></i></span>
+            <span class="btn btn-outline btn-sm" style="margin-top:14px">More</span>
         </a>
         {% empty %}<p class="overview-empty">No mentor records have been added yet.</p>{% endfor %}
     </div>

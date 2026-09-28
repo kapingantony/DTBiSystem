@@ -2,7 +2,7 @@
 {% block title %}Partnership Pipeline - DTBi{% endblock %}
 {% block page_title %}Partnership Pipeline{% endblock %}
 {% block content %}
-<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:data_hub' %}"><i class="fas fa-arrow-left"></i> Data Hub</a><span>Review collaboration offers, assign an owner, and track delivery for the startup ecosystem.</span></div>
+<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:data_hub' %}">Data Hub</a><span>Review collaboration offers, assign an owner, and track delivery for the startup ecosystem.</span></div>
 <div class="stats-grid mt-20">
     <div class="stat-card blue"><div class="stat-value">{{ totals.pending|default:0 }}</div><div class="stat-label">New requests</div></div>
     <div class="stat-card"><div class="stat-value">{{ totals.under_review|default:0 }}</div><div class="stat-label">Under review</div></div>

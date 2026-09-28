@@ -18,7 +18,7 @@
                 {% if investor.investment_interest %}<div class="person-detail"><i class="fas fa-bullseye"></i> {{ investor.investment_interest }}</div>{% endif %}
             </div>
             {% if investor.description %}<div class="person-tags"><span class="tag">{{ investor.description|truncatechars:100 }}</span></div>{% endif %}
-            <span class="btn btn-outline btn-sm" style="margin-top:14px">More <i class="fas fa-arrow-right"></i></span>
+            <span class="btn btn-outline btn-sm" style="margin-top:14px">More</span>
         </a>
         {% empty %}<p class="overview-empty">No investor records have been added yet.</p>{% endfor %}
     </div>

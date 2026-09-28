@@ -1064,6 +1064,9 @@ table tbody tr:last-child td { border-bottom: none; }
 .session-form-field textarea { min-height: 94px; resize: vertical; }
 .session-form-field input:focus, .session-form-field select:focus, .session-form-field textarea:focus { outline: 0; border-color: var(--navy-400); background: var(--white); box-shadow: 0 0 0 3px rgba(74,138,212,.16); }
 .session-form-field .form-help, .session-form-field .helptext { display: block; margin-top: 5px; color: var(--gray-500); font-size: .72rem; line-height: 1.45; }
+.mentor-session-record-card .card-header { justify-content: flex-start; }
+.mentor-session-record-card .card-header p { margin: 5px 0 0; font-size: .78rem; }
+.mentor-completed-session-form .session-form-actions { display: flex; align-items: center; padding-top: 2px; }
 .session-form-actions { grid-column: 1 / -1; }
 .session-filter-form { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, 260px) auto; align-items: center; gap: 10px; margin-bottom: 18px; }
 .session-filter-form .form-input, .session-filter-form .filter-select { width: 100%; min-width: 0; min-height: 40px; }

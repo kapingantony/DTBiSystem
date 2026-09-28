@@ -2,7 +2,7 @@
 {% block title %}Bulk Import - DTBi{% endblock %}
 {% block page_title %}Bulk Import{% endblock %}
 {% block content %}
-<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:data_hub' %}"><i class="fas fa-arrow-left"></i> Data Hub</a><span>Maximum upload size: 20 MB. Up to 20,000 rows per file.</span></div>
+<div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:data_hub' %}">Data Hub</a><span>Maximum upload size: 20 MB. Up to 20,000 rows per file.</span></div>
 <section class="card mt-20"><div class="card-header"><h3>1. Upload a file</h3></div><div class="card-body">
 <form method="post" enctype="multipart/form-data" class="auth-form">{% csrf_token %}<input type="hidden" name="action" value="upload">
 <div class="form-group"><label for="dataset">Record type</label><select class="form-select" id="dataset" name="dataset" required><option value="">Choose records</option>{% for value,label in datasets %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
