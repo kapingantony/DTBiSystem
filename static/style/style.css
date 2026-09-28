@@ -1055,6 +1055,30 @@ table tbody tr:last-child td { border-bottom: none; }
 .settings-action-danger > span > i, .settings-action-danger > i { color: #b14b4b; }
 .settings-actions { display: flex; justify-content: flex-end; }
 
+/* Admin account create/edit forms */
+.account-form-card .card-header p { margin: 5px 0 0; font-size: .78rem; }
+.account-form-notice { margin: 0 0 22px; padding: 12px 15px; border: 1px solid var(--navy-100); border-left: 3px solid var(--gold-500); border-radius: var(--radius-sm); color: var(--navy-700); background: var(--navy-50); font-size: .8rem; line-height: 1.55; }
+.account-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 22px; align-items: start; }
+.account-form-field { display: grid; gap: 7px; min-width: 0; }
+.account-form-field > label { color: var(--gray-700); font-size: .78rem; font-weight: 700; }
+.account-form-required { margin-left: 4px; color: #b14b4b; }
+.account-form-field input:not([type="checkbox"]), .account-form-field select, .account-form-field textarea { display: block; width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); color: var(--gray-800); background: var(--gray-50); font: inherit; }
+.account-form-field textarea { min-height: 112px; resize: vertical; }
+.account-form-field input:not([type="checkbox"]):focus, .account-form-field select:focus, .account-form-field textarea:focus { outline: 0; border-color: var(--navy-400); background: var(--white); box-shadow: 0 0 0 3px rgba(37,99,160,.12); }
+.account-form-field input[type="file"] { min-height: auto; padding: 8px; border-style: dashed; background: var(--white); }
+.account-form-field input[type="file"]::file-selector-button { margin-right: 10px; padding: 7px 10px; border: 0; border-radius: 5px; color: var(--navy-700); background: var(--navy-50); font: inherit; font-weight: 700; cursor: pointer; }
+.account-form-help { color: var(--gray-500); font-size: .72rem; line-height: 1.45; overflow-wrap: anywhere; }
+.account-form-error { color: #a13d3d; font-size: .75rem; line-height: 1.45; }
+.account-form-error-wide, .account-form-actions { grid-column: 1 / -1; }
+.account-form-error-wide { padding: 11px 13px; border-radius: var(--radius-sm); background: #fff0ef; }
+.account-form-error-wide ul { margin: 0; padding-left: 18px; }
+.account-form-checkbox { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px 10px; min-height: 44px; padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--gray-50); }
+.account-form-checkbox > label { grid-column: 2; grid-row: 1; }
+.account-form-checkbox input[type="checkbox"] { grid-column: 1; grid-row: 1; width: 18px; height: 18px; margin: 0; accent-color: var(--navy-600); }
+.account-form-checkbox .account-form-help, .account-form-checkbox .account-form-error { grid-column: 1 / -1; }
+.account-form-actions { display: flex; justify-content: flex-end; padding-top: 4px; border-top: 1px solid var(--gray-100); }
+.account-form-actions .btn { min-width: 170px; justify-content: center; }
+
 /* Mentor session scheduling form */
 .session-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
 .session-form-field { min-width: 0; }
@@ -1339,6 +1363,9 @@ table tbody tr:last-child td { border-bottom: none; }
   .visitor-pulse-grid { grid-template-columns: 1fr 1fr; row-gap: 22px; }
   .settings-intro { align-items: flex-start; flex-direction: column; }
   .settings-form-grid { grid-template-columns: 1fr; }
+  .account-form { grid-template-columns: 1fr; gap: 16px; }
+  .account-form-error-wide, .account-form-actions { grid-column: auto; }
+  .account-form-actions .btn { width: 100%; }
   .settings-field-wide { grid-column: auto; }
   .settings-preference-row { align-items: flex-start; flex-direction: column; }
   .settings-preference-row .form-select { width: 100%; }

@@ -3,8 +3,28 @@
 {% block page_title %}{{ heading }}{% endblock %}
 {% block content %}
 <div class="filter-bar"><a class="btn btn-outline" href="{% url 'staff:account_management' %}">Back to account management</a></div>
-<section class="card mt-20"><div class="card-header"><h3>{{ heading }}</h3></div><div class="card-body">
-{% if is_new and kind != 'staff' %}<p class="form-help">A login will be created from the first name in this record, with initial password <strong>123</strong>. The startup account created here will be public and published.</p>{% elif is_new %}<p class="form-help">A staff login will be created with initial password <strong>123</strong>.</p>{% endif %}
-<form method="post" enctype="multipart/form-data" class="settings-form-grid">{% csrf_token %}{% for field in form %}<div class="form-group{% if field.field.widget.input_type == 'checkbox' %} settings-field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<div class="form-help">{{ field.help_text }}</div>{% endif %}{% for error in field.errors %}<div class="form-error">{{ error }}</div>{% endfor %}</div>{% endfor %}{% if form.non_field_errors %}<div class="form-error settings-field-wide">{{ form.non_field_errors }}</div>{% endif %}<div class="settings-field-wide"><button class="btn btn-primary" type="submit">{{ heading }}</button></div></form>
-</div></section>
+<section class="card mt-20 account-form-card">
+    <div class="card-header"><div><h3>{{ heading }}</h3><p class="text-muted">Enter the record details below. Required fields are marked with an asterisk.</p></div></div>
+    <div class="card-body">
+        {% if is_new and kind != 'staff' %}
+        <p class="account-form-notice">A login will be created from the first name in this record, with initial password <strong>123</strong>. Startup accounts created here are public and published.</p>
+        {% elif is_new %}
+        <p class="account-form-notice">A staff login will be created with initial password <strong>123</strong>.</p>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="account-form">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="account-form-field{% if field.field.widget.input_type == 'checkbox' %} account-form-checkbox{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="account-form-required">*</span>{% endif %}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="account-form-help">{{ field.help_text }}</div>{% endif %}
+                {% for error in field.errors %}<div class="account-form-error">{{ error }}</div>{% endfor %}
+            </div>
+            {% endfor %}
+            {% if form.non_field_errors %}<div class="account-form-error account-form-error-wide">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="account-form-actions"><button class="btn btn-primary" type="submit">{{ heading }}</button></div>
+        </form>
+    </div>
+</section>
 {% endblock %}
