@@ -22,7 +22,7 @@
             <canvas class="ambient-field ambient-field-hero" aria-hidden="true"></canvas>
             <div class="overview-hero-text">
                 <span class="overview-eyebrow hero-rise hero-rise-1"><i class="fas fa-sparkles"></i> BUNI &amp; DTBi innovation ecosystem</span>
-                <h1 class="hero-rise hero-rise-2">From early innovation to <span class="grad-gold-text">thriving ventures</span>.</h1>
+                <h1 class="hero-rise hero-rise-2" aria-hidden="true" style="min-height:2.04em"></h1>
                 <p class="hero-rise hero-rise-3">Connect early support and incubation with the people, partnerships, resources, and measurable outcomes that help ventures grow.</p>
                 <div class="overview-actions hero-rise hero-rise-4">
                     <a href="{% url 'staff:register' %}" class="overview-primary-action">Get Started</a>
@@ -56,7 +56,7 @@
     <section class="overview-section-head" data-reveal>
         <div>
             <span class="overview-kicker">Quick summary</span>
-            <h2>Software's data insight</h2>
+            <h2>BUNI &amp; DTBi, in numbers</h2>
         </div>
         <span class="overview-updated"><i class="fas fa-circle"></i> Live from the system</span>
     </section>
@@ -64,7 +64,7 @@
     <section class="overview-stats-grid" data-stagger="110" aria-label="System statistics">
         <article class="overview-stat-card">
             <span class="overview-stat-icon"><i class="fas fa-rocket"></i></span>
-            <div><span class="overview-stat-label">Startups</span><strong>{{ system_stats.startups }}</strong><small>Profiles in the hub</small></div>
+            <div><span class="overview-stat-label">Startups</span><strong>{{ system_stats.startups }}</strong><small>Published venture profiles</small></div>
         </article>
         <article class="overview-stat-card">
             <span class="overview-stat-icon"><i class="fas fa-users"></i></span>
@@ -76,7 +76,7 @@
         </article>
         <article class="overview-stat-card">
             <span class="overview-stat-icon"><i class="fas fa-coins"></i></span>
-            <div><span class="overview-stat-label">Funding tracked</span><strong>${{ system_stats.funding|floatformat:0 }}</strong><small>Recorded across startups</small></div>
+            <div><span class="overview-stat-label">Funding records</span><strong>{{ system_stats.funding_records }}</strong><small>Committed or received entries</small></div>
         </article>
     </section>
 
@@ -107,7 +107,12 @@
     <section class="overview-capability-grid" data-stagger="100" aria-label="Upcoming opportunities">
         {% for opportunity in upcoming_opportunities %}
         <article class="card"><span class="badge">{{ opportunity.get_opportunity_type_display }}</span><h3>{{ opportunity.title }}</h3><p>{{ opportunity.description|default:'Details are available in the startup profile.'|truncatechars:150 }}</p><p class="text-muted">{{ opportunity.startup.name }}{% if opportunity.deadline %} · Closes {{ opportunity.deadline|date:'d M Y' }}{% endif %}</p><a class="btn btn-outline btn-sm" href="{% url 'staff:startup_profile' slug=opportunity.startup.slug %}">More details</a></article>
-        {% empty %}<p class="overview-empty">No upcoming opportunities have been published yet.</p>{% endfor %}
+        {% empty %}<div class="overview-empty"><p>No live opportunities have been published yet.</p><a href="{% url 'hub_history' %}">Browse archived programme examples from the tracer study</a></div>{% endfor %}
+    </section>
+
+    <section class="overview-section" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:28px 0">
+        <a href="{% url 'impact_explorer' %}" class="card" style="padding:22px;text-decoration:none;color:inherit"><span class="overview-kicker">For institutions and partners</span><h2>Explore annual impact</h2><p>Filter recorded support, startup cohorts, mentor sessions, outcomes, and jobs by year or venture.</p><strong>Open impact explorer</strong></a>
+        <a href="{% url 'hub_history' %}" class="card" style="padding:22px;text-decoration:none;color:inherit"><span class="overview-kicker">Since 2011</span><h2>BUNI &amp; DTBi history</h2><p>Learn about the programmes and ecosystem work that shaped Tanzania’s innovation community.</p><strong>Read the history</strong></a>
     </section>
 
     <section class="overview-capabilities">
@@ -124,9 +129,9 @@
         <div class="visitor-pulse-heading"><span class="overview-kicker"><i class="fas fa-signal"></i> Visitor pulse</span><h2>People viewing the system</h2><p>Unique browser sessions recorded by the platform. Updated live.</p></div>
         <div class="visitor-pulse-grid">
             <div><strong data-visitor-count="total">{{ visitor_counts.total|default:0 }}</strong><span>Total visitors</span><small>Since launch</small></div>
+            <div><strong data-visitor-count="month">{{ visitor_counts.month|default:0 }}</strong><span>This month</span><small>Since the 1st</small></div>
+            <div><strong data-visitor-count="week">{{ visitor_counts.week|default:0 }}</strong><span>This week</span><small>From Monday this month</small></div>
             <div><strong data-visitor-count="today">{{ visitor_counts.today|default:0 }}</strong><span>Today</span><small>Visitors today</small></div>
-            <div><strong data-visitor-count="week">{{ visitor_counts.week|default:0 }}</strong><span>This week</span><small>Last 7 days</small></div>
-            <div><strong data-visitor-count="month">{{ visitor_counts.month|default:0 }}</strong><span>This month</span><small>Since month start</small></div>
         </div>
     </section>
 </main>

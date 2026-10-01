@@ -1,86 +1,30 @@
 {% extends "base.html" %}
-
-{% block title %}Startups — DTBi | BUNI Innovation Management System{% endblock %}
-{% block page_title %}Startups{% endblock %}
-
+{% block title %}Startup Directory — DTBi | BUNI{% endblock %}
+{% block page_title %}Startup directory{% endblock %}
 {% block content %}
 <style>
-    .startup-type-filter { display: flex; gap: 8px; margin-bottom: 16px; }
-    .type-chip { padding: 6px 16px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; border: 1px solid var(--gray-300); background: var(--white); color: var(--gray-600); cursor: pointer; transition: var(--transition); text-decoration: none; }
-    .type-chip:hover { border-color: var(--navy-500); color: var(--navy-600); }
-    .type-chip.active { background: var(--navy-600); color: var(--white); border-color: var(--navy-600); }
-    .startup-name-link { color: var(--navy-600); font-weight: 700; text-decoration: none; }
-    .startup-name-link:hover { text-decoration: underline; }
-    .type-badge { padding: 2px 10px; border-radius: 99px; font-size: 0.7rem; font-weight: 600; }
-    .type-badge.public { background: var(--navy-50); color: var(--navy-600); }
-    .type-badge.individual { background: var(--gold-50); color: var(--gold-600); }
+.startup-directory-intro{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:26px 30px;margin-bottom:20px;border-radius:20px;background:linear-gradient(120deg,#0d2d4b,#155b79);color:#fff}.startup-directory-intro h2{margin:5px 0 7px;color:#fff;font-size:1.7rem}.startup-directory-intro p{margin:0;color:#d4e5ef;max-width:660px}.startup-directory-intro .eyebrow{font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:#f4c35a}.startup-directory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:18px;margin-top:18px}.startup-showcase{overflow:hidden;border:1px solid #e4eaf0;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(18,45,70,.07);transition:transform .2s,box-shadow .2s}.startup-showcase:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(18,45,70,.12)}.startup-showcase-cover{height:112px;background:radial-gradient(circle at 78% 12%,rgba(255,255,255,.26),transparent 28%),linear-gradient(120deg,#16466b,#2f8990);background-size:cover;background-position:center;display:flex;align-items:flex-end;padding:0 18px}.startup-brand{width:64px;height:64px;margin-bottom:-21px;display:grid;place-items:center;overflow:hidden;border:4px solid white;border-radius:17px;background:#fff;color:#174870;font-size:1.1rem;font-weight:800;box-shadow:0 3px 14px #102d4729}.startup-brand img{width:100%;height:100%;object-fit:cover}.startup-showcase-content{padding:29px 18px 18px}.startup-showcase h3{font-size:1.08rem;margin:0 0 7px;color:#183650}.startup-showcase h3 a{color:inherit;text-decoration:none}.startup-showcase h3 a:hover{color:#17698a}.startup-showcase-meta{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}.startup-showcase-meta span{padding:5px 9px;border-radius:99px;background:#f1f5f8;color:#476174;font-size:.72rem;font-weight:650}.startup-showcase-description{min-height:58px;margin:11px 0 15px;color:#607385;font-size:.86rem;line-height:1.5}.startup-showcase-footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #edf1f4;padding-top:13px}.startup-directory-empty{grid-column:1/-1;padding:38px;text-align:center;border:1px dashed #cbd7e0;border-radius:16px;color:#64788a}@media(max-width:700px){.startup-directory-intro{align-items:flex-start;flex-direction:column;padding:22px}.startup-showcase-description{min-height:0}}
 </style>
-
-<div class="filter-bar">
-    <form method="get" class="filter-bar" id="startupFilters">
-    <div class="search-box"><i class="fas fa-search"></i><input type="search" placeholder="Name, industry, or description" id="startupSearch" name="q" value="{{ search_query }}"></div>
-    <select class="filter-select" name="industry" aria-label="Filter startups by industry"><option value="">All Industries</option>{% for industry in industries %}<option value="{{ industry.value }}" {% if industry_filter == industry.value %}selected{% endif %}>{{ industry.label }}</option>{% endfor %}</select>
-    <select class="filter-select" name="status" aria-label="Filter startups by status"><option value="">All Statuses</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-    <select class="filter-select" name="type" aria-label="Filter startups by type"><option value="">All Types</option><option value="public" {% if filter_type == 'public' %}selected{% endif %}>Public</option><option value="individual" {% if filter_type == 'individual' %}selected{% endif %}>Individual</option></select>
-    </form>
-    {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
-    {% if user.profile.is_admin %}<a href="{% url 'admin:staff_startup_changelist' %}" class="btn btn-outline"><i class="fas fa-shield-halved"></i> Manage Startups</a>{% endif %}
-</div>
-
-<div class="filter-bar"><span>{% if search_query or industry_filter or status_filter or filter_type %}Showing {{ page_obj.paginator.count }} startups matching your filters.{% else %}{{ page_obj.paginator.count }} startups in the directory.{% endif %}</span>{% if search_query or industry_filter or status_filter or filter_type %}<a class="btn btn-outline btn-sm" href="{% url 'staff:startups' %}">Clear filters</a>{% endif %}</div>
-
-<div class="card">
-    <div class="card-body flush">
-        <div class="table-wrap">
-            <table id="startupTable">
-                <thead>
-                    <tr>
-                        <th>Startup</th>
-                        <th>Type</th>
-                        <th>Industry</th>
-                        <th>Status</th>
-                        <th>More</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in startup_list %}
-                    <tr>
-                        <td>
-                            <a href="{% url 'staff:startup_profile' slug=s.slug %}" class="startup-name-link">{{ s.name }}</a>
-                            {% if s.industry %}<div style="font-size:0.75rem; color:var(--gray-400);">{{ s.industry }}</div>{% endif %}
-                        </td>
-                        <td><span class="type-badge {{ s.startup_type }}">{{ s.get_startup_type_display }}</span></td>
-                        <td>{{ s.industry|default:"—" }}</td>
-                        <td><span class="status-pill {{ s.status }}">{{ s.get_status_display }}</span></td>
-                        <td><a href="{% url 'staff:startup_profile' slug=s.slug %}" class="btn btn-sm btn-outline" aria-label="View more details for {{ s.name }}">More</a></td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5">
-                            <div class="empty-state">
-                                <i class="fas fa-rocket"></i>
-                                <h3>No startups yet</h3>
-                                <p>Add your first startup to get started.</p>
-                                {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary" style="margin-top:12px;"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+<section class="startup-directory-intro"><div><span class="eyebrow">BUNI and DTBi portfolio</span><h2>Startups</h2><p>Explore startup organizations, their products, and their progress.</p></div><div style="display:flex;gap:9px;flex-wrap:wrap">{% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-gold">Add startup</a>{% endif %}</div></section>
+<section class="card mt-20" id="startupStatistics"><div class="card-header"><div><span class="overview-kicker">Annual startup statistics</span><h2>Explore impact by year</h2><p class="text-muted">Choose a year and startup to view recorded annual support, outcomes, and employment. Download the same filtered figures as an Excel workbook.</p></div></div><div class="card-body"><form method="get" action="{% url 'impact_explorer' %}" class="filter-bar"><label>Year<select class="filter-select" name="year">{% for year in impact_years %}<option value="{{ year }}" {% if year == impact_default_year %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></label><label>Startup<select class="filter-select" name="startup"><option value="">All published startups</option>{% for item in impact_startups %}<option value="{{ item.pk }}">{{ item.name }}</option>{% endfor %}</select></label><input type="hidden" name="dataset" value="all"><button class="btn btn-primary" type="submit">View statistics</button><button class="btn btn-outline" type="submit" name="format" value="xlsx">Download Excel</button></form></div></section>
+<section class="overview-section-head mt-20"><div><span class="overview-kicker">Startup profiles</span><h2>Startup directory</h2><p>Browse the organization profiles, filter by category, and use the page controls to see more.</p></div></section>
+<div class="filter-bar"><form method="get" class="filter-bar" id="startupFilters"><div class="search-box"><i class="fas fa-search"></i><input type="search" placeholder="Search venture, sector, or product" name="q" value="{{ search_query }}"></div><select class="filter-select" name="industry" aria-label="Filter by sector"><option value="">All categories</option>{% for industry in industries %}<option value="{{ industry.value }}" {% if industry_filter == industry.value %}selected{% endif %}>{{ industry.label }}</option>{% endfor %}</select><button type="submit" class="btn btn-primary">Search</button></form>{% if user.profile.is_admin %}<a href="{% url 'admin:staff_startup_changelist' %}" class="btn btn-outline">Manage</a>{% endif %}</div>
+{% if search_query or industry_filter %}<div class="filter-bar" style="justify-content:flex-end"><a class="btn btn-outline btn-sm" href="{% url 'staff:startups' %}">Clear filters</a></div>{% endif %}
+<div class="startup-directory-grid">
+{% for s in startup_list %}
+<article class="startup-showcase">
+    <div class="startup-showcase-cover"{% if s.cover_image %} style="background-image:linear-gradient(0deg,#12324b35,#12324b05),url('{{ s.cover_image.url }}')"{% endif %}>
+        <div class="startup-brand">{% if s.logo %}<img src="{{ s.logo.url }}" alt="{{ s.name }} logo">{% else %}{{ s.name|slice:":2"|upper }}{% endif %}</div>
     </div>
+    <div class="startup-showcase-content">
+        <div class="startup-showcase-meta"><span>{{ s.industry }}</span></div>
+        <h3><a href="{% url 'staff:startup_profile' slug=s.slug %}">{{ s.name }}</a></h3>
+        <p class="startup-showcase-description">{{ s.description|truncatechars:170 }}</p>
+        <div class="startup-showcase-footer"><span class="status-pill {{ s.status }}">{{ s.get_status_display }}</span><a class="btn btn-sm btn-primary" href="{% url 'staff:startup_profile' slug=s.slug %}">View profile</a></div>
+    </div>
+</article>
+{% empty %}<div class="startup-directory-empty"><i class="fas fa-rocket"></i><h3>No startup organizations match this view</h3><p>Try another category or clear your filters.</p>{% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary">Add startup</a>{% endif %}</div>{% endfor %}
 </div>
 {% include "partials/pagination.html" %}
-<script>
-    (function () {
-        const filters = document.getElementById('startupFilters');
-        if (!filters) return;
-        filters.querySelectorAll('select[name="industry"], select[name="status"], select[name="type"]').forEach(function (select) {
-            select.addEventListener('change', function () {
-                filters.requestSubmit();
-            });
-        });
-    }());
-</script>
+<script>(function(){const f=document.getElementById('startupFilters');if(f)f.querySelectorAll('select').forEach(s=>s.addEventListener('change',()=>f.requestSubmit()));}());</script>
 {% endblock %}

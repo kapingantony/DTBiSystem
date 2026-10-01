@@ -34,7 +34,7 @@
             <div class="auth-field">
                 <i class="fas fa-user auth-field-icon" aria-hidden="true"></i>
                 <input type="text" name="username" id="username" placeholder=" " autocomplete="username" required>
-                <label for="username">Username</label>
+                <label for="username">Username or email</label>
             </div>
 
             <div class="auth-field">
@@ -46,18 +46,6 @@
                 </button>
             </div>
             <a class="auth-help-link" href="{% url 'password_reset' %}">Forgot your password?</a>
-
-            {% if user_types %}
-            <div class="form-group">
-                <label for="user_type">User Type</label>
-                <div class="auth-select-wrap">
-                    <i class="fas fa-user-shield auth-select-icon" aria-hidden="true"></i>
-                    <select name="user_type" id="user_type" class="form-select">
-                        {% for value, label in user_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-                    </select>
-                </div>
-            </div>
-            {% endif %}
 
             <button type="submit" class="auth-submit">Sign In</button>
         </form>

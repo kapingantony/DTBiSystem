@@ -1,3 +1,7 @@
+from io import BytesIO
+
+from openpyxl import Workbook
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
@@ -8,10 +12,10 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import urlencode, url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 
 from .models import (
     Startup, Founder, Opportunity, Funding,
@@ -53,8 +57,9 @@ STARTUP_INDUSTRY_CATEGORIES = (
 def get_visitor_counts():
     now = timezone.localtime()
     today = now.date()
-    week_start = today - timezone.timedelta(days=6)
     month_start = today.replace(day=1)
+    # Use the current calendar week, clipped to this month so week is a subset of month.
+    week_start = max(today - timezone.timedelta(days=today.weekday()), month_start)
     return {
         'total': SiteVisit.objects.count(),
         'today': SiteVisit.objects.filter(last_seen__date=today).count(),
@@ -99,12 +104,12 @@ def landing(request):
         )
 
     system_stats = {
-        'startups': Startup.objects.count(),
+        'startups': Startup.objects.filter(status='active', directory_visible=True).count(),
         'mentors': Mentor.objects.filter(is_active=True).count(),
         'investors': Investor.objects.filter(status='active').count(),
         'founders': Founder.objects.count(),
         'opportunities': Opportunity.objects.count(),
-        'funding': Funding.objects.aggregate(total=Sum('amount'))['total'] or 0,
+        'funding_records': Funding.objects.filter(status__in=('received', 'committed')).count(),
     }
     upcoming_opportunities = Opportunity.objects.filter(
         status='open', startup__status='active', startup__directory_visible=True,
@@ -116,6 +121,131 @@ def landing(request):
         'system_stats': system_stats,
         'upcoming_opportunities': upcoming_opportunities,
     })
+
+
+def impact_explorer(request):
+    """Year based public impact view using recorded operational data only."""
+    from .models import ParticipantJourney, ParticipantOutcome, MentorEngagement
+
+    current_year = timezone.localdate().year
+    years = range(2000, current_year + 1)
+    try:
+        selected_year = int(request.GET.get('year', current_year))
+    except (TypeError, ValueError):
+        selected_year = current_year
+    if selected_year not in years:
+        selected_year = current_year
+    selected_startup = request.GET.get('startup', '').strip()
+    visible_startups = Startup.objects.filter(directory_visible=True).exclude(status='pending')
+    startup_query = visible_startups
+    if selected_startup.isdigit():
+        startup_query = startup_query.filter(pk=selected_startup)
+    else:
+        selected_startup = ''
+    startup = startup_query.first() if selected_startup else None
+
+    cohort = visible_startups.filter(
+        Q(year_incubated=selected_year)
+        | Q(year_incubated__isnull=True, incubation_start__year=selected_year)
+        | Q(year_incubated__isnull=True, incubation_start__isnull=True, founded_date__year=selected_year)
+    )
+    journeys = ParticipantJourney.objects.filter(started_on__year=selected_year, startup__in=visible_startups)
+    outcomes = ParticipantOutcome.objects.filter(recorded_on__year=selected_year, journey__startup__in=visible_startups)
+    if startup:
+        cohort = cohort.filter(pk=startup.pk)
+        journeys = journeys.filter(startup=startup)
+        outcomes = outcomes.filter(journey__startup=startup)
+    latest_outcomes = [
+        row for row in outcomes.select_related('journey__startup').order_by('journey_id', '-recorded_on', '-created_at')
+    ]
+    latest_by_journey = {}
+    for outcome in latest_outcomes:
+        latest_by_journey.setdefault(outcome.journey_id, outcome)
+    outcome_rows = list(latest_by_journey.values())
+    jobs_full = sum(row.full_time_jobs for row in outcome_rows)
+    jobs_part = sum(row.part_time_jobs for row in outcome_rows)
+    sessions = MentorEngagement.objects.filter(date__year=selected_year, status='completed', startup__in=visible_startups)
+    if startup:
+        sessions = sessions.filter(startup=startup)
+    cohort_ids = set(cohort.values_list('pk', flat=True))
+    journey_ids = set(journeys.values_list('startup_id', flat=True))
+    outcome_ids = set(ParticipantOutcome.objects.filter(recorded_on__year=selected_year, journey__startup__in=visible_startups).values_list('journey__startup_id', flat=True))
+    session_ids = set(sessions.values_list('startup_id', flat=True))
+    dataset = request.GET.get('dataset', 'all')
+    dataset_choices = [('all', 'All annual data'), ('startups', 'Startup cohorts'), ('participants', 'Participant outcomes'), ('mentoring', 'Mentoring activity')]
+    if dataset not in {key for key, _label in dataset_choices}:
+        dataset = 'all'
+    candidate_ids = {
+        'all': cohort_ids | journey_ids | outcome_ids | session_ids,
+        'startups': cohort_ids,
+        'participants': journey_ids | outcome_ids,
+        'mentoring': session_ids,
+    }[dataset]
+    if startup:
+        candidate_ids = {startup.pk}
+    startup_rows = []
+    for item in visible_startups.filter(pk__in=candidate_ids).order_by('name'):
+        item_journeys = ParticipantJourney.objects.filter(startup=item, started_on__year=selected_year)
+        item_outcomes = ParticipantOutcome.objects.filter(journey__startup=item, recorded_on__year=selected_year)
+        latest_for_journey = {}
+        for item_outcome in item_outcomes.order_by('journey_id', '-recorded_on', '-created_at'):
+            latest_for_journey.setdefault(item_outcome.journey_id, item_outcome)
+        item_sessions = MentorEngagement.objects.filter(startup=item, date__year=selected_year, status='completed').count()
+        startup_rows.append({
+            'startup': item, 'in_cohort': item.pk in cohort_ids,
+            'participant_starts': item_journeys.count(), 'outcome_snapshots': item_outcomes.count(),
+            'milestones': item_outcomes.exclude(milestone='').count(), 'mentor_sessions': item_sessions,
+            'full_time_jobs': sum(outcome.full_time_jobs for outcome in latest_for_journey.values()),
+            'part_time_jobs': sum(outcome.part_time_jobs for outcome in latest_for_journey.values()),
+        })
+
+    max_jobs = max((row['full_time_jobs'] + row['part_time_jobs'] for row in startup_rows), default=0)
+    for row in startup_rows:
+        row['jobs_total'] = row['full_time_jobs'] + row['part_time_jobs']
+        row['jobs_bar_width'] = round((row['jobs_total'] / max_jobs) * 100) if max_jobs else 0
+
+    if request.GET.get('format') == 'xlsx':
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = 'Annual startup impact'
+        sheet.append(['Startup', 'Industry', 'Year', 'In startup cohort', 'Participant starts', 'Completed mentoring sessions', 'Outcome snapshots', 'Milestone updates', 'Reported full-time jobs', 'Reported part-time jobs'])
+        for row in startup_rows:
+            sheet.append([row['startup'].name, row['startup'].industry, selected_year, 'Yes' if row['in_cohort'] else 'No', row['participant_starts'], row['mentor_sessions'], row['outcome_snapshots'], row['milestones'], row['full_time_jobs'], row['part_time_jobs']])
+        for column in sheet.columns:
+            sheet.column_dimensions[column[0].column_letter].width = min(max(max(len(str(cell.value or '')) for cell in column) + 2, 12), 36)
+        output = BytesIO()
+        workbook.save(output)
+        response = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="dtbi-impact-{selected_year}-{dataset}.xlsx"'
+        return response
+    return render(request, 'impact_explorer.html', {
+        'years': years, 'selected_year': selected_year, 'startups': visible_startups.order_by('name'),
+        'selected_startup': str(startup.pk) if startup else '', 'startup': startup,
+        'startup_count': cohort.distinct().count(), 'participant_count': journeys.count(),
+        'jobs_full': jobs_full, 'jobs_part': jobs_part, 'sessions_count': sessions.count(),
+        'outcome_count': outcomes.count(),
+        'startup_rows': startup_rows, 'dataset': dataset, 'dataset_choices': dataset_choices,
+        'jobs_chart_max': max_jobs,
+    })
+
+
+def hub_history(request):
+    """Public history and archival photos from the tracer study."""
+    early_history_photos = [
+        {'image': 'img/history/early-days-01.jpg', 'alt': 'Early 3D printers and prototyping equipment in a makerspace', 'caption': 'Early makerspace equipment and prototypes', 'page': 13},
+        {'image': 'img/history/early-days-02.jpg', 'alt': 'Participants working together around a business model worksheet', 'caption': 'Participants developing ideas together', 'page': 13},
+        {'image': 'img/history/early-days-03.jpg', 'alt': 'A speaker sharing ideas with workshop participants', 'caption': 'A BUNI community workshop', 'page': 13},
+        {'image': 'img/history/early-days-04.jpg', 'alt': 'Two members of the BUNI community wearing BUNI shirts', 'caption': 'BUNI community members', 'page': 13},
+        {'image': 'img/history/early-days-05.jpg', 'alt': 'Audience attending an early BUNI community session', 'caption': 'A community learning session', 'page': 13},
+        {'image': 'img/history/early-days-06.jpg', 'alt': 'A group of BUNI community members inside the hub', 'caption': 'The BUNI community at the hub', 'page': 13},
+        {'image': 'img/history/early-days-07.jpg', 'alt': 'Two participants reviewing work at a laptop in a makerspace', 'caption': 'Working together on a digital product', 'page': 14},
+        {'image': 'img/history/early-days-08.jpg', 'alt': 'A BUNI member presenting beside a BUNI Innovation Hub display', 'caption': 'Sharing the BUNI Innovation Hub story', 'page': 14},
+        {'image': 'img/history/early-days-09.jpg', 'alt': 'TechBox team members at an innovation event', 'caption': 'A TechBox team moment', 'page': 14},
+        {'image': 'img/history/early-days-10.jpg', 'alt': 'Audience seated at an innovation community event', 'caption': 'An innovation community gathering', 'page': 14},
+        {'image': 'img/history/early-days-11.jpg', 'alt': 'Panel discussion with hub community members and partners', 'caption': 'A discussion with hub partners', 'page': 14},
+        {'image': 'img/history/early-days-12.jpg', 'alt': 'A visitor meeting members of the startup community', 'caption': 'Visitors meeting startup teams', 'page': 14},
+    ]
+    return render(request, 'hub_history.html', {'early_history_photos': early_history_photos})
 
 
 def visitor_stats(request):
@@ -139,16 +269,11 @@ def index(request):
 
 
 def startups(request):
-    startup_list = Startup.objects.filter(directory_visible=True)
+    startup_list = Startup.objects.filter(directory_visible=True).prefetch_related('founders')
     is_admin = request.user.is_authenticated and (request.user.is_superuser or get_profile(request.user).is_admin)
     if not is_admin:
         startup_list = startup_list.filter(status='active')
-    # Keep the Edutech record as the final clean legacy entry in the directory.
-    from django.db.models import Case, IntegerField, Value, When
-    startup_list = startup_list.order_by(
-        Case(When(name__iexact='EDUTECH', then=Value(1)), default=Value(0), output_field=IntegerField()),
-        '-created_at',
-    )
+    startup_list = startup_list.order_by('industry', 'name')
     # Filter by type if specified
     startup_type = request.GET.get('type', '').strip().lower()
     if startup_type in {'public', 'individual'}:
@@ -161,35 +286,22 @@ def startups(request):
             Q(name__icontains=search_query) | Q(industry__icontains=search_query)
             | Q(description__icontains=search_query) | Q(source__icontains=search_query)
         )
-    if industry_filter.startswith('sector:'):
-        sector_key = industry_filter.split(':', 1)[1]
-        sector = next((item for item in STARTUP_INDUSTRY_CATEGORIES if item[0] == sector_key), None)
-        if sector:
-            sector_query = Q()
-            for keyword in sector[2]:
-                sector_query |= Q(industry__icontains=keyword)
-            startup_list = startup_list.filter(sector_query)
-        else:
-            industry_filter = ''
-    elif industry_filter:
-        raw_industry = industry_filter.split(':', 1)[1] if industry_filter.startswith('industry:') else industry_filter
-        startup_list = startup_list.filter(industry__iexact=raw_industry)
+    if industry_filter:
+        startup_list = startup_list.filter(industry__iexact=industry_filter)
     if status_filter in dict(Startup.STATUS_CHOICES):
         startup_list = startup_list.filter(status=status_filter)
     industries = list(Startup.objects.filter(directory_visible=True).exclude(industry='').values_list('industry', flat=True).distinct().order_by('industry'))
-    industry_options = [
-        {'value': f'sector:{key}', 'label': label}
-        for key, label, _keywords in STARTUP_INDUSTRY_CATEGORIES
-    ]
-    for industry in industries:
-        industry_lower = industry.casefold()
-        if not any(any(keyword in industry_lower for keyword in keywords) for _key, _label, keywords in STARTUP_INDUSTRY_CATEGORIES):
-            industry_options.append({'value': f'industry:{industry}', 'label': industry})
+    industry_options = [{'value': category, 'label': category} for category in industries]
     query_params = request.GET.copy()
     query_params.pop('page', None)
-    page_obj = Paginator(startup_list, 25).get_page(request.GET.get('page'))
+    page_obj = Paginator(startup_list, 6).get_page(request.GET.get('page'))
+    from django.utils import timezone
+    current_year = timezone.localdate().year
     context = {
         'startup_list': page_obj,
+        'impact_years': range(2000, current_year + 1),
+        'impact_default_year': current_year,
+        'impact_startups': Startup.objects.filter(directory_visible=True).exclude(status='pending').order_by('name'),
         'page_obj': page_obj,
         'filter_type': startup_type or '',
         'search_query': search_query,
@@ -206,18 +318,17 @@ def startups(request):
 def user_login(request):
     """Handle login according to the stored user role and Django permission flags."""
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        requested_type = request.POST.get('user_type', 'public')
+        login_identifier = (request.POST.get('username') or '').strip()
+        password = request.POST.get('password') or ''
 
-        valid_types = {choice[0] for choice in UserProfile.USER_TYPE_CHOICES}
-        if requested_type not in valid_types:
-            requested_type = 'public'
-
-        user = authenticate(request, username=username, password=password)
+        user = authenticate(request, username=login_identifier, password=password)
+        if user is None and '@' in login_identifier:
+            matching_accounts = User.objects.filter(email__iexact=login_identifier)
+            if matching_accounts.count() == 1:
+                user = authenticate(request, username=matching_accounts.first().username, password=password)
         if user is None:
-            messages.error(request, 'Invalid username or password.')
-            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+            messages.error(request, 'Invalid username/email or password, or this account is disabled.')
+            return render(request, 'registration/login.html')
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
 
@@ -227,10 +338,6 @@ def user_login(request):
         elif user.is_staff and profile.user_type not in ('admin', 'staff'):
             profile.user_type = 'staff'
             profile.save(update_fields=['user_type'])
-
-        if profile.user_type != requested_type:
-            messages.error(request, 'Choose the user type assigned to this account.')
-            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
 
         login(request, user)
         profile.login_count += 1
@@ -244,7 +351,7 @@ def user_login(request):
         if profile.user_type == 'admin':
             return redirect('staff:dashboard')
         if profile.user_type == 'staff':
-            return redirect('staff:staff_list')
+            return redirect('staff:dashboard')
         if profile.user_type == 'mentor' and hasattr(user, 'mentor_record'):
             return redirect('mentor_profile', pk=user.mentor_record.pk)
         if profile.user_type == 'investor' and hasattr(user, 'investor_record'):
@@ -253,8 +360,7 @@ def user_login(request):
             return redirect('staff:startup_profile', slug=profile.startup.slug) if profile.startup else redirect('staff:startup_create')
         return redirect('staff:dashboard')
 
-    user_types = UserProfile.USER_TYPE_CHOICES
-    return render(request, 'registration/login.html', {'user_types': user_types})
+    return render(request, 'registration/login.html')
 
 
 @require_http_methods(["GET", "POST"])
@@ -284,6 +390,31 @@ def dashboard(request):
             'startups_count': startups_count,
             'total_registrations': total_registrations,
             'recent_logins': recent_logins,
+            'dashboard_counts': {
+                'active_startups': Startup.objects.filter(status='active', directory_visible=True).count(),
+                'pending_startups': Startup.objects.filter(status='pending').count(),
+                'mentors': Mentor.objects.filter(is_active=True).count(),
+                'mentors_demo': Mentor.objects.filter(is_active=True).count() > 0 and not Mentor.objects.filter(is_active=True).exclude(source__startswith='DEMO ONLY').exists(),
+                'investors': Investor.objects.filter(status='active').count(),
+                'investors_demo': Investor.objects.filter(status='active').count() > 0 and not Investor.objects.filter(status='active').exclude(source__startswith='DEMO ONLY').exists(),
+            },
+        })
+    elif profile.user_type == 'staff':
+        from .models import MentorEngagement, ParticipantFollowUp, ParticipantJourney, Partnership
+        context.update({
+            'staff_operations': {
+                'assigned_journeys': ParticipantJourney.objects.filter(assigned_to=request.user).count(),
+                'followups_due': ParticipantFollowUp.objects.filter(
+                    assigned_to=request.user, status__in=('open', 'in_progress'),
+                    due_date__lte=timezone.localdate(),
+                ).count(),
+                'assigned_partnerships': Partnership.objects.filter(
+                    assigned_to=request.user, status__in=('pending', 'under_review', 'in_progress'),
+                ).count(),
+                'upcoming_sessions': MentorEngagement.objects.filter(
+                    scheduled_by=request.user, status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate(),
+                ).count(),
+            },
         })
     elif profile.is_startup:
         # Startup owner dashboard
@@ -450,20 +581,25 @@ def startup_create(request):
     return render(request, 'startup_profile.html', context)
 
 
-@login_required
 def startup_profile(request, slug):
-    """Display and edit startup profile"""
+    """Display public startup details and keep editing behind authentication."""
     startup = get_object_or_404(Startup, slug=slug)
+    authenticated = request.user.is_authenticated
     if request.method == 'GET':
         record_page_visit(request, 'startup', startup.slug, startup.name)
-    profile = get_profile(request.user)
+    if not authenticated and (startup.status != 'active' or not startup.directory_visible):
+        raise Http404
+    profile = get_profile(request.user) if authenticated else None
+    more_login_url = f"{reverse('staff:user_login')}?{urlencode({'next': request.get_full_path()})}"
+    if request.method == 'POST' and not authenticated:
+        return redirect(more_login_url)
 
     # Only the owner of the startup (or a hub admin) may change it.
-    can_edit = profile.is_admin or request.user.is_staff or profile.startup_id == startup.id
+    can_edit = bool(profile and (profile.is_admin or request.user.is_staff or profile.startup_id == startup.id))
     can_view_private = can_edit
     if startup.status == 'pending' and not can_edit:
         return redirect(f"{reverse('staff:user_login')}?next={request.get_full_path()}")
-    can_view_mentor_sessions = profile.is_admin or profile.is_staff_role or profile.startup_id == startup.id
+    can_view_mentor_sessions = bool(profile and (profile.is_admin or profile.is_staff_role or profile.startup_id == startup.id))
 
     if request.method == 'POST':
         if not can_edit:
@@ -496,7 +632,7 @@ def startup_profile(request, slug):
             messages.success(request, 'Startup profile updated successfully.')
             return redirect('staff:startup_profile', slug=saved_startup.slug)
     else:
-        form_class = StartupForm if profile.is_admin else StartupOwnerForm
+        form_class = StartupForm if profile and profile.is_admin else StartupOwnerForm
         form = form_class(instance=startup)
         founder_formset = FounderFormSet(instance=startup, prefix='founders')
         opportunity_formset = OpportunityFormSet(instance=startup, prefix='opportunities')
@@ -519,7 +655,8 @@ def startup_profile(request, slug):
         'creating': False,
         'can_edit': can_edit,
         'can_view_private': can_view_private,
-        'show_admin_fields': profile.is_admin,
+        'show_admin_fields': bool(profile and profile.is_admin),
+        'more_login_url': more_login_url,
         'upcoming_mentor_sessions': startup.mentor_engagements.filter(
             status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate()
         ).select_related('mentor').order_by('date', 'start_time')[:10] if can_view_mentor_sessions else (),
@@ -610,10 +747,10 @@ def investors(request):
 @login_required
 def staff_list(request):
     profile = get_profile(request.user)
-    if profile.user_type not in ['admin', 'staff']:
-        messages.error(request, 'Only staff and admin users can view the staff directory.')
+    if not profile.is_admin:
+        messages.info(request, 'Staff account details are visible to administrators only.')
         return redirect('staff:dashboard')
-    staff_users = User.objects.filter(is_staff=True).select_related('profile').order_by('username')
+    staff_users = User.objects.filter(is_staff=True, is_superuser=False, profile__user_type='staff').select_related('profile').order_by('first_name', 'username')
     return render(request, 'staff_list.html', {'staff_users': staff_users})
 
 
@@ -690,14 +827,14 @@ def account_management(request):
 
     return render(request, 'account_management.html', {
         'startups': Startup.objects.select_related().all()[:100],
-        'mentors': Mentor.objects.all()[:100],
-        'investors': Investor.objects.all()[:100],
-        'staff_users': User.objects.filter(is_staff=True, is_superuser=False).select_related('profile').order_by('first_name', 'username'),
+        'mentors': Mentor.objects.filter(is_active=True).select_related('user')[:100],
+        'investors': Investor.objects.filter(status='active').select_related('user')[:100],
+        'staff_users': User.objects.filter(is_staff=True, is_superuser=False, profile__user_type='staff').select_related('profile').order_by('first_name', 'username'),
         'pending_startups': Startup.objects.filter(status='pending').count(),
         'counts': {
-            'startups': Startup.objects.count(), 'mentors': Mentor.objects.count(),
-            'investors': Investor.objects.count(),
-            'staff': User.objects.filter(is_staff=True, is_superuser=False).count(),
+            'startups': Startup.objects.count(), 'mentors': Mentor.objects.filter(is_active=True).count(),
+            'investors': Investor.objects.filter(status='active').count(),
+            'staff': User.objects.filter(is_staff=True, is_superuser=False, profile__user_type='staff').count(),
         },
     })
 

@@ -20,7 +20,7 @@ urlpatterns = [
         ),
         name='password_change',
     ),
-    path('', views.index, name='dashboard'),
+    path('', views.dashboard, name='dashboard'),
     path('startups/', views.startups, name='startups'),
     path('startups/create/', views.startup_create, name='startup_create'),
     path('startups/<slug:slug>/', views.startup_profile, name='startup_profile'),

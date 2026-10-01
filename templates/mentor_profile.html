@@ -7,14 +7,12 @@
     {% if can_record_session %}<a class="btn btn-primary" href="{% url 'staff:mentor_sessions' %}?mentor={{ mentor.pk }}"><i class="fas fa-calendar-plus"></i> Arrange a session</a>{% endif %}
 </div>
 
-<section class="card mt-20">
-    <div class="card-header"><h3>{{ mentor.name }}</h3></div>
-    <div class="card-body">
-        <p>{{ mentor.role|default:'BUNI mentor' }}{% if mentor.education_level %} &middot; {{ mentor.education_level }}{% endif %}</p>
-        <p>{{ mentor.skills|default:'Skills not recorded.' }}</p>
-        {% if mentor.training_topics %}<p>Training topics: {{ mentor.training_topics }}</p>{% endif %}
-        {% if mentor.email %}<p>Email: {{ mentor.email }}</p>{% endif %}
+<section class="card mt-20" style="overflow:hidden">
+    <div style="padding:26px;display:flex;align-items:center;gap:18px;background:linear-gradient(120deg,#12304d,#176c78);color:white">
+        <div class="person-avatar blue" style="width:72px;height:72px;font-size:1.25rem;border:3px solid #ffffff9c">{{ mentor.name|slice:":2"|upper }}</div>
+        <div><span class="overview-kicker" style="color:#c7e7ef">BUNI &amp; DTBi mentor profile</span><h2 style="color:white;margin:5px 0">{{ mentor.name }}</h2><p style="margin:0;color:#dcebf0">{{ mentor.role|default:'Mentor' }}{% if mentor.education_level %} · {{ mentor.education_level }}{% endif %}</p></div>
     </div>
+    <div class="card-body"><h3>Expertise</h3><p>{{ mentor.skills|default:'Expertise details have not been added yet.' }}</p>{% if mentor.training_topics %}<h3>Topics they can support</h3><p>{{ mentor.training_topics }}</p>{% endif %}{% if can_view_contact and mentor.email %}<p>Email: <a href="mailto:{{ mentor.email }}">{{ mentor.email }}</a></p>{% endif %}</div>
 </section>
 
 {% if can_view_activity %}

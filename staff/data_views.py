@@ -1,4 +1,3 @@
-import csv
 import io
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from functools import wraps
@@ -78,14 +77,18 @@ def record_page_visit(request, page_type, object_key, display_name):
 
 @staff_or_admin_required
 def data_hub(request):
+    is_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type='admin').exists()
     partnership_pipeline = Partnership.objects.filter(status__in=('pending', 'under_review')).count()
     upcoming_session_count = MentorEngagement.objects.filter(
         status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate()
     ).count()
+    recent_imports = DataImportBatch.objects.select_related('uploaded_by')
+    if not is_admin:
+        recent_imports = recent_imports.filter(uploaded_by=request.user)
     return render(request, 'data_hub.html', {
-        'recent_imports': DataImportBatch.objects.select_related('uploaded_by')[:8],
+        'recent_imports': recent_imports[:8],
         'unread_visits': PageVisit.objects.filter(is_read=False).count(),
-        'is_admin': request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type='admin').exists(),
+        'is_admin': is_admin,
         'partnership_pipeline': partnership_pipeline,
         'upcoming_session_count': upcoming_session_count,
     })
@@ -94,17 +97,19 @@ def data_hub(request):
 @staff_or_admin_required
 @require_http_methods(['GET', 'POST'])
 def partnership_inbox(request):
+    is_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type='admin').exists()
     status_choices = dict(Partnership.STATUS_CHOICES)
     type_choices = dict(Partnership.TYPE_CHOICES)
     if request.method == 'POST':
-        partnership = get_object_or_404(Partnership, pk=request.POST.get('partnership_id'))
+        editable = Partnership.objects.all() if is_admin else Partnership.objects.filter(assigned_to=request.user)
+        partnership = get_object_or_404(editable, pk=request.POST.get('partnership_id'))
         new_status = request.POST.get('status', '')
         if new_status not in status_choices:
             messages.error(request, 'Choose a valid partnership status.')
             return redirect(request.get_full_path())
 
         User = get_user_model()
-        assignee_id = request.POST.get('assigned_to') or None
+        assignee_id = (request.POST.get('assigned_to') or None) if is_admin else request.user.pk
         valid_staff_ids = UserProfile.objects.filter(user_type__in=('admin', 'staff')).values_list('user_id', flat=True)
         assigned_to = None
         if assignee_id:
@@ -132,6 +137,8 @@ def partnership_inbox(request):
         return redirect(request.get_full_path())
 
     partnerships = Partnership.objects.select_related('related_startup', 'assigned_to').all()
+    if not is_admin:
+        partnerships = partnerships.filter(assigned_to=request.user)
     status_filter = request.GET.get('status', '')
     type_filter = request.GET.get('type', '')
     search = request.GET.get('q', '').strip()
@@ -148,7 +155,7 @@ def partnership_inbox(request):
     totals = {row['status']: row['total'] for row in Partnership.objects.values('status').annotate(total=Count('id'))}
     User = get_user_model()
     staff_ids = UserProfile.objects.filter(user_type__in=('admin', 'staff')).values_list('user_id', flat=True)
-    assignees = User.objects.filter(Q(is_superuser=True) | Q(pk__in=staff_ids)).distinct().order_by('username')
+    assignees = User.objects.filter(Q(is_superuser=True) | Q(pk__in=staff_ids)).distinct().order_by('username') if is_admin else User.objects.filter(pk=request.user.pk)
     query_params = request.GET.copy()
     query_params.pop('page', None)
     page_obj = Paginator(partnerships, 20).get_page(request.GET.get('page'))
@@ -163,20 +170,24 @@ def partnership_inbox(request):
         'search': search,
         'totals': totals,
         'assignees': assignees,
-        'history': PartnershipHistory.objects.select_related('partnership', 'changed_by')[:30],
+        'history': PartnershipHistory.objects.select_related('partnership', 'changed_by').filter(
+            partnership__assigned_to=request.user
+        )[:30] if not is_admin else PartnershipHistory.objects.select_related('partnership', 'changed_by')[:30],
     })
 
 
 @staff_or_admin_required
 @require_http_methods(['GET', 'POST'])
 def data_import(request):
+    is_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type='admin').exists()
     batch = None
     headers = []
     rows = []
     mapping = {}
     preview_analysis = None
     if request.method == 'POST' and request.POST.get('action') in {'check', 'confirm'}:
-        batch = get_object_or_404(DataImportBatch, pk=request.POST.get('batch_id'), uploaded_by=request.user)
+        batches = DataImportBatch.objects.all() if is_admin else DataImportBatch.objects.filter(uploaded_by=request.user)
+        batch = get_object_or_404(batches, pk=request.POST.get('batch_id'))
         mapping = {field: request.POST.get(f'map_{field}', '') for field in IMPORT_FIELDS[batch.dataset]}
         mapping = {field: header for field, header in mapping.items() if header}
         if request.POST.get('action') == 'check':
@@ -201,13 +212,20 @@ def data_import(request):
 
     if request.method == 'GET' and request.GET.get('errors'):
         batch = get_object_or_404(DataImportBatch, pk=request.GET.get('errors'))
-        if batch.uploaded_by_id != request.user.id and not request.user.is_superuser:
+        if batch.uploaded_by_id != request.user.id and not is_admin:
             raise PermissionDenied
-        response = HttpResponse(content_type='text/csv; charset=utf-8')
-        response['Content-Disposition'] = f'attachment; filename="import-{batch.pk}-errors.csv"'
-        writer = csv.writer(response)
-        writer.writerow(['Row', 'Issue'])
-        writer.writerows((item.get('row', ''), item.get('error', '')) for item in batch.row_errors)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = 'Import issues'
+        sheet.append(['Row', 'Issue'])
+        for item in batch.row_errors:
+            sheet.append([item.get('row', ''), item.get('error', '')])
+        sheet.column_dimensions['A'].width = 12
+        sheet.column_dimensions['B'].width = 80
+        output = io.BytesIO()
+        workbook.save(output)
+        response = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="import-{batch.pk}-errors.xlsx"'
         return response
 
     if request.method == 'POST':
@@ -237,7 +255,8 @@ def data_import(request):
 
     batch_id = request.GET.get('batch')
     if batch is None and batch_id:
-        batch = get_object_or_404(DataImportBatch, pk=batch_id, uploaded_by=request.user)
+        batches = DataImportBatch.objects.all() if is_admin else DataImportBatch.objects.filter(uploaded_by=request.user)
+        batch = get_object_or_404(batches, pk=batch_id)
     if batch and batch.status == 'preview' and not headers:
         try:
             headers, rows = preview_import(batch)
@@ -515,7 +534,7 @@ def data_reports(request):
     if report_kind not in {value for value, _label in report_kinds}:
         report_kind = 'all'
     fmt = request.GET.get('format')
-    if fmt in ('xlsx', 'pdf'):
+    if fmt == 'xlsx':
         _filter_report_kind(data, report_kind)
     summary = summarize_report(data)
     data['executive_summary'] = summary['text']
@@ -524,15 +543,6 @@ def data_reports(request):
     if fmt == 'xlsx':
         response = HttpResponse(_report_xlsx(data), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="dtbi-{report_kind}-report-{start}-{end}.xlsx"'
-        return response
-    if fmt == 'pdf':
-        try:
-            pdf = _report_pdf(data)
-        except ValidationError as exc:
-            messages.error(request, '; '.join(exc.messages))
-            return redirect('staff:data_reports')
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="dtbi-{report_kind}-report-{start}-{end}.pdf"'
         return response
     data.update({'period': period, 'presets': ('week', 'month', 'half_year', 'year', 'custom'), 'report_kinds': report_kinds, 'report_kind': report_kind})
     return render(request, 'data_reports.html', data)
@@ -672,11 +682,16 @@ def mentor_sessions(request):
 @staff_or_admin_required
 @require_http_methods(['GET', 'POST'])
 def participant_journey(request):
+    is_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type='admin').exists()
+    journey_scope = ParticipantJourney.objects.all() if is_admin else ParticipantJourney.objects.filter(assigned_to=request.user)
     selected_id = request.GET.get('participant') or request.POST.get('participant_id') or request.POST.get('journey_id')
-    selected = ParticipantJourney.objects.filter(pk=selected_id).select_related('startup', 'assigned_to').first() if selected_id else None
-    journey_form = ParticipantJourneyForm(instance=selected)
+    selected = journey_scope.filter(pk=selected_id).select_related('startup', 'assigned_to').first() if selected_id else None
+    journey_form = ParticipantJourneyForm(instance=selected, initial={'assigned_to': request.user} if not is_admin and not selected else None)
+    followup_form = ParticipantFollowUpForm(journey=selected, initial={'assigned_to': request.user})
+    if not is_admin:
+        journey_form.fields['assigned_to'].queryset = get_user_model().objects.filter(pk=request.user.pk)
+        followup_form.fields['assigned_to'].queryset = get_user_model().objects.filter(pk=request.user.pk)
     support_form = ParticipantSupportForm()
-    followup_form = ParticipantFollowUpForm(journey=selected)
     outcome_form = ParticipantOutcomeForm()
 
     if request.method == 'POST':
@@ -687,9 +702,14 @@ def participant_journey(request):
                 return redirect('staff:participant_journey')
             instance = selected if action == 'save_journey' else ParticipantJourney()
             journey_form = ParticipantJourneyForm(request.POST, instance=instance)
+            if not is_admin:
+                journey_form.fields['assigned_to'].queryset = get_user_model().objects.filter(pk=request.user.pk)
             if journey_form.is_valid():
                 before = (instance.current_stage, instance.status) if instance.pk else ('', '')
-                journey = journey_form.save()
+                journey = journey_form.save(commit=False)
+                if not is_admin and journey.assigned_to_id is None:
+                    journey.assigned_to = request.user
+                journey.save()
                 stage, status = journey.current_stage, journey.status
                 if before != (stage, status):
                     ParticipantJourneyHistory.objects.create(
@@ -710,6 +730,8 @@ def participant_journey(request):
                 return redirect(f'{request.path}?participant={selected.pk}')
         elif selected and action == 'add_followup':
             followup_form = ParticipantFollowUpForm(request.POST, journey=selected)
+            if not is_admin:
+                followup_form.fields['assigned_to'].queryset = get_user_model().objects.filter(pk=request.user.pk)
             if followup_form.is_valid():
                 followup = followup_form.save(commit=False)
                 followup.journey, followup.created_by = selected, request.user
@@ -748,7 +770,7 @@ def participant_journey(request):
         else:
             messages.error(request, 'Choose a participant before recording support, follow-ups, or outcomes.')
 
-    journeys = ParticipantJourney.objects.select_related('startup', 'assigned_to').all()
+    journeys = journey_scope.select_related('startup', 'assigned_to')
     search = request.GET.get('q', '').strip()
     stage_filter = request.GET.get('stage', '')
     status_filter = request.GET.get('status', '')
@@ -778,9 +800,15 @@ def participant_journey(request):
         'outcomes': selected.outcomes.select_related('recorded_by').all()[:12] if selected else (),
         'journey_history': selected.history.select_related('changed_by').all()[:20] if selected else (),
         'counts': {
-            'active': ParticipantJourney.objects.filter(status='active').count(),
-            'followups_due': ParticipantFollowUp.objects.filter(status__in=('open', 'in_progress'), due_date__lte=timezone.localdate()).count(),
-            'support_this_month': ParticipantSupport.objects.filter(delivered_on__year=timezone.localdate().year, delivered_on__month=timezone.localdate().month).count(),
+            'active': journey_scope.filter(status='active').count(),
+            'followups_due': ParticipantFollowUp.objects.filter(
+                status__in=('open', 'in_progress'), due_date__lte=timezone.localdate(),
+                **({} if is_admin else {'assigned_to': request.user}),
+            ).count(),
+            'support_this_month': ParticipantSupport.objects.filter(
+                journey__in=journey_scope, delivered_on__year=timezone.localdate().year,
+                delivered_on__month=timezone.localdate().month,
+            ).count(),
         },
     })
 
@@ -815,7 +843,7 @@ def mentor_session_ical(request, pk):
 
 @require_http_methods(['GET', 'POST'])
 def mentor_profile(request, pk):
-    if not request.user.is_authenticated:
+    if request.method == 'POST' and not request.user.is_authenticated:
         return redirect(f"{reverse('staff:user_login')}?next={reverse('mentor_profile', kwargs={'pk': pk})}")
     mentor = get_object_or_404(Mentor, pk=pk, is_active=True)
     if request.method == 'POST' and request.user.is_authenticated:
@@ -848,16 +876,17 @@ def mentor_profile(request, pk):
         except (ValidationError, ValueError, Startup.DoesNotExist) as exc:
             message = '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Enter a valid startup, date, and hours.'
             messages.error(request, message)
-    is_owner = getattr(request.user, 'mentor_record_id', None) == mentor.pk
-    is_staff_admin = request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
-    if not (is_owner or is_staff_admin):
-        return redirect('mentors')
+    is_owner = request.user.is_authenticated and getattr(request.user, 'mentor_record_id', None) == mentor.pk
+    is_staff_admin = request.user.is_authenticated and (
+        request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
+    )
     record_page_visit(request, 'mentor', mentor.pk, mentor.name)
     return render(request, 'mentor_profile.html', {
         'mentor': mentor,
         'startups': Startup.objects.filter(status='active').order_by('name'),
         'can_record_session': is_staff_admin,
         'can_view_activity': is_owner or is_staff_admin,
+        'can_view_contact': is_owner or is_staff_admin,
         'sessions': mentor.engagements.filter(status='completed').select_related('startup')[:20] if (
             request.user.is_authenticated and (
                 request.user.is_superuser or UserProfile.objects.filter(user=request.user, user_type__in=('admin', 'staff')).exists()
@@ -872,15 +901,16 @@ def mentor_profile(request, pk):
 
 
 def investor_profile(request, pk):
-    if not request.user.is_authenticated:
-        return redirect(f"{reverse('staff:user_login')}?next={reverse('investor_profile', kwargs={'pk': pk})}")
     investor = get_object_or_404(Investor, pk=pk, status='active')
-    profile = UserProfile.objects.filter(user=request.user).first()
-    is_owner = getattr(request.user, 'investor_record_id', None) == investor.pk
-    if not (request.user.is_superuser or (profile and profile.user_type in ('admin', 'staff')) or is_owner):
-        return redirect('investors')
+    profile = UserProfile.objects.filter(user=request.user).first() if request.user.is_authenticated else None
+    is_owner = request.user.is_authenticated and getattr(request.user, 'investor_record_id', None) == investor.pk
+    is_staff_admin = request.user.is_authenticated and (
+        request.user.is_superuser or (profile and profile.user_type in ('admin', 'staff'))
+    )
     record_page_visit(request, 'investor', investor.pk, investor.organization or investor.name)
     return render(request, 'investor_profile.html', {
         'investor': investor,
-        'fundings': investor.fundings.select_related('startup').order_by('-created_at')[:30],
+        'can_view_contact': is_owner or is_staff_admin,
+        'can_view_financials': is_owner or is_staff_admin,
+        'fundings': investor.fundings.select_related('startup').order_by('-created_at')[:30] if (is_owner or is_staff_admin) else (),
     })

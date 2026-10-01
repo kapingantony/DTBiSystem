@@ -11,6 +11,8 @@ from staff import data_views as staff_data_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', landing, name='landing'),
+    path('impact/', staff_views.impact_explorer, name='impact_explorer'),
+    path('hub-history/', staff_views.hub_history, name='hub_history'),
     path('mentors/', staff_views.mentors, name='mentors'),
     path('mentors/<int:pk>/', staff_data_views.mentor_profile, name='mentor_profile'),
     path('investors/', staff_views.investors, name='investors'),

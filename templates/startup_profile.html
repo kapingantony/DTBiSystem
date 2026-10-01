@@ -211,14 +211,17 @@
             <div class="value">{{ startup.founded_date|date:"M d, Y"|default:"—" }}</div>
         </div>
         <div class="info-item">
-            <div class="label">Contract Status</div>
-            <div class="value"><span class="status-pill {{ startup.contract_status }}">{{ startup.get_contract_status_display }}</span></div>
-        </div>
-        <div class="info-item">
             <div class="label">Status</div>
             <div class="value"><span class="status-pill {{ startup.status }}">{{ startup.get_status_display }}</span></div>
         </div>
     </div>
+    {% if startup.description %}
+    <section class="card mt-20">
+        <div class="card-header"><h3 class="card-title">About this startup</h3></div>
+        <div class="card-body"><p class="overview-description">{{ startup.description }}</p></div>
+    </section>
+    {% endif %}
+    {% if user.is_authenticated %}
     <details class="overview-more">
         <summary class="btn btn-outline btn-sm">More details</summary>
         <div class="more-content">
@@ -228,14 +231,14 @@
                 <div class="info-item"><div class="label">Year incubated</div><div class="value">{{ startup.year_incubated|default:"—" }}</div></div>
                 <div class="info-item"><div class="label">Source</div><div class="value">{{ startup.source|default:"—" }}</div></div>
             </div>
-            {% if startup.description %}
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">About</h3></div>
-                <div class="card-body"><p class="overview-description">{{ startup.description }}</p></div>
-            </div>
-            {% endif %}
         </div>
     </details>
+    {% else %}
+    <div class="overview-more">
+        <a class="btn btn-outline btn-sm" href="{{ more_login_url }}">More details</a>
+        <p class="text-muted">Sign in to view additional startup details.</p>
+    </div>
+    {% endif %}
     {% if upcoming_mentor_sessions %}<section class="card mt-20"><div class="card-header"><h3>Upcoming mentor support</h3></div><div class="card-body">{% for session in upcoming_mentor_sessions %}<p><strong>{{ session.date|date:'D, d M Y' }} at {{ session.start_time|time:'H:i' }}</strong> &middot; {{ session.mentor.name }} &middot; {{ session.hours }} hours{% if session.meeting_url %} &middot; <a href="{{ session.meeting_url }}" target="_blank" rel="noopener noreferrer">Join meeting</a>{% elif session.meeting_location %} &middot; {{ session.meeting_location }}{% endif %}</p>{% endfor %}</div></section>{% endif %}
 </div>
 
