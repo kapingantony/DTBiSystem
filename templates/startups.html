@@ -1,88 +1,274 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Startups — DTBi | BUNI Innovation Management System{% endblock %}
 {% block page_title %}Startups{% endblock %}
 
 {% block content %}
-<style>
-    .startup-type-filter { display: flex; gap: 8px; margin-bottom: 16px; }
-    .type-chip { padding: 6px 16px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; border: 1px solid var(--gray-300); background: var(--white); color: var(--gray-600); cursor: pointer; transition: var(--transition); text-decoration: none; }
-    .type-chip:hover { border-color: var(--navy-500); color: var(--navy-600); }
-    .type-chip.active { background: var(--navy-600); color: var(--white); border-color: var(--navy-600); }
-    .startup-name-link { color: var(--navy-600); font-weight: 700; text-decoration: none; }
-    .startup-name-link:hover { text-decoration: underline; }
-    .type-badge { padding: 2px 10px; border-radius: 99px; font-size: 0.7rem; font-weight: 600; }
-    .type-badge.public { background: var(--navy-50); color: var(--navy-600); }
-    .type-badge.individual { background: var(--gold-50); color: var(--gold-600); }
-</style>
+<link rel="stylesheet" href="{% static 'style/startups-yc.css' %}?v=20261001-yc3">
 
-<div class="filter-bar">
-    <form method="get" class="filter-bar" id="startupFilters">
-    <div class="search-box"><i class="fas fa-search"></i><input type="search" placeholder="Name, industry, or description" id="startupSearch" name="q" value="{{ search_query }}"></div>
-    <select class="filter-select" name="industry" aria-label="Filter startups by industry"><option value="">All Industries</option>{% for industry in industries %}<option value="{{ industry.value }}" {% if industry_filter == industry.value %}selected{% endif %}>{{ industry.label }}</option>{% endfor %}</select>
-    <select class="filter-select" name="status" aria-label="Filter startups by status"><option value="">All Statuses</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-    <select class="filter-select" name="type" aria-label="Filter startups by type"><option value="">All Types</option><option value="public" {% if filter_type == 'public' %}selected{% endif %}>Public</option><option value="individual" {% if filter_type == 'individual' %}selected{% endif %}>Individual</option></select>
-    </form>
-    {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
-    <a href="{% url 'public_report' kind='startups' %}" class="btn btn-outline"><i class="fas fa-file-csv"></i> CSV</a>
-    <a href="{% url 'public_report_pdf' kind='startups' %}" class="btn btn-outline"><i class="fas fa-file-pdf"></i> PDF</a>
-    {% if user.profile.is_admin %}<a href="{% url 'admin:staff_startup_changelist' %}" class="btn btn-outline"><i class="fas fa-shield-halved"></i> Manage Startups</a>{% endif %}
-</div>
+<div class="yc-page">
 
-<div class="filter-bar"><span>{% if search_query or industry_filter or status_filter or filter_type %}Showing {{ page_obj.paginator.count }} startups matching your filters.{% else %}{{ page_obj.paginator.count }} startups in the directory.{% endif %}</span>{% if search_query or industry_filter or status_filter or filter_type %}<a class="btn btn-outline btn-sm" href="{% url 'staff:startups' %}">Clear filters</a>{% endif %}</div>
+    <!-- ============ HERO ============ -->
+    <header class="yc-hero">
+        <span class="yc-eyebrow">DTBi &times; BUNI Innovation Hub</span>
 
-<div class="card">
-    <div class="card-body flush">
-        <div class="table-wrap">
-            <table id="startupTable">
-                <thead>
-                    <tr>
-                        <th>Startup</th>
-                        <th>Type</th>
-                        <th>Industry</th>
-                        <th>Status</th>
-                        <th>More</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in startup_list %}
-                    <tr>
-                        <td>
-                            <a href="{% url 'staff:startup_profile' slug=s.slug %}" class="startup-name-link">{{ s.name }}</a>
-                            {% if s.industry %}<div style="font-size:0.75rem; color:var(--gray-400);">{{ s.industry }}</div>{% endif %}
-                        </td>
-                        <td><span class="type-badge {{ s.startup_type }}">{{ s.get_startup_type_display }}</span></td>
-                        <td>{{ s.industry|default:"—" }}</td>
-                        <td><span class="status-pill {{ s.status }}">{{ s.get_status_display }}</span></td>
-                        <td><a href="{% url 'staff:startup_profile' slug=s.slug %}" class="btn btn-sm btn-outline" aria-label="View more details for {{ s.name }}">More</a></td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5">
-                            <div class="empty-state">
-                                <i class="fas fa-rocket"></i>
-                                <h3>No startups yet</h3>
-                                <p>Add your first startup to get started.</p>
-                                {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary" style="margin-top:12px;"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <h1 class="yc-hero-title">
+            The companies building Tanzania&rsquo;s <em>digital economy</em><sup>1</sup>
+        </h1>
+
+        <p class="yc-hero-lede">
+            A curated, always-current directory of ventures from the DTBi registry &mdash;
+            filter by sector, status and type, then open any profile for the full record.
+        </p>
+
+        <div class="yc-hero-actions">
+            <a class="btn btn-primary" href="#yc-directory">Browse the directory <i class="fas fa-arrow-down"></i></a>
+            {% if user.is_authenticated %}<a class="btn btn-outline" href="{% url 'staff:startup_create' %}"><i class="fas fa-plus"></i> Add a startup</a>{% endif %}
+        </div>
+
+        <div class="yc-stats">
+            <div class="yc-stat">
+                <span class="yc-stat-num" data-count>{{ live_counts.startups }}</span>
+                <span class="yc-stat-label">Companies</span>
+            </div>
+            <div class="yc-stat">
+                <span class="yc-stat-num" data-count>{{ industries|length }}</span>
+                <span class="yc-stat-label">Sectors</span>
+            </div>
+            <div class="yc-stat">
+                <span class="yc-stat-num" data-count>{{ live_counts.mentors }}</span>
+                <span class="yc-stat-label">Mentors</span>
+            </div>
+            <div class="yc-stat">
+                <span class="yc-stat-num" data-count>{{ live_counts.investors }}</span>
+                <span class="yc-stat-label">Investors</span>
+            </div>
+        </div>
+
+        <p class="yc-footnote"><sup>1</sup> Counts reflect live registry records at page load.</p>
+    </header>
+
+    <!-- ============ SECTOR TICKER ============ -->
+    {% if industries %}
+    <div class="yc-ticker" aria-hidden="true">
+        <div class="yc-ticker-track">
+            <div class="yc-ticker-group">
+                {% for industry in industries %}<span class="yc-ticker-item">{{ industry.label }}</span>{% endfor %}
+            </div>
+            <div class="yc-ticker-group">
+                {% for industry in industries %}<span class="yc-ticker-item">{{ industry.label }}</span>{% endfor %}
+            </div>
         </div>
     </div>
+    {% endif %}
+
+    <!-- ============ FEATURED SHOWCASE RAIL ============ -->
+    {% if showcase %}
+    <section class="yc-showcase" aria-label="Featured startups">
+        <div class="yc-showcase-head" data-reveal>
+            <div>
+                <span class="yc-eyebrow">Featured</span>
+                <h2 class="yc-section-title" style="margin-top:10px;">From the <em>directory</em></h2>
+            </div>
+            <div class="yc-rail-nav">
+                <span class="yc-showcase-hint">Scroll or drag</span>
+                <button type="button" class="yc-rail-btn" id="ycRailPrev" aria-label="Scroll showcase backwards"><i class="fas fa-arrow-left"></i></button>
+                <button type="button" class="yc-rail-btn" id="ycRailNext" aria-label="Scroll showcase forwards"><i class="fas fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <div class="yc-rail" id="ycRail" tabindex="0" role="region" aria-label="Featured startup cards, horizontally scrollable">
+            {% for s in showcase %}
+            <a class="yc-shot" href="{% url 'staff:startup_profile' slug=s.slug %}" aria-label="Open profile for {{ s.name }}">
+                <div class="yc-thumb">
+                    {% with parts=s.name.split %}<span class="yc-fb">{{ parts.0|first|upper }}{% if parts.1 %}{{ parts.1|first|upper }}{% endif %}</span>{% endwith %}
+                    <img src="{% static 'img/startups/' %}{{ s.slug }}-cover.jpg" alt=""
+                         {% if forloop.first %}loading="eager"{% else %}loading="lazy"{% endif %} decoding="async"
+                         onerror="this.remove()">
+                    <span class="yc-thumb-chip{% if s.status == 'active' %} is-live{% endif %}">{{ s.get_status_display }}</span>
+                    <span class="yc-thumb-cta">View profile <i class="fas fa-arrow-right"></i></span>
+                </div>
+                <div class="yc-shot-body">
+                    <h3 class="yc-shot-name">{{ s.name }}</h3>
+                    <div class="yc-shot-meta">
+                        {% if s.industry %}<span>{{ s.industry }}</span>{% endif %}
+                        {% if s.industry %}<span class="yc-dot">&bull;</span>{% endif %}
+                        <span>{{ s.get_startup_type_display }}</span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- ============ DIRECTORY ============ -->
+    <section class="yc-directory" id="yc-directory">
+        <div class="yc-directory-head" data-reveal>
+            <div>
+                <span class="yc-eyebrow">Directory</span>
+                <h2 class="yc-section-title" style="margin-top:10px;">Every venture, <em>one place</em></h2>
+            </div>
+        </div>
+
+        <div class="yc-toolbar">
+            <form method="get" class="filter-bar" id="startupFilters">
+                <div class="search-box"><i class="fas fa-search"></i><input type="search" placeholder="Name, industry, or description" id="startupSearch" name="q" value="{{ search_query }}"></div>
+                <select class="filter-select" name="industry" aria-label="Filter startups by industry"><option value="">All Industries</option>{% for industry in industries %}<option value="{{ industry.value }}" {% if industry_filter == industry.value %}selected{% endif %}>{{ industry.label }}</option>{% endfor %}</select>
+                <select class="filter-select" name="status" aria-label="Filter startups by status"><option value="">All Statuses</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+                <select class="filter-select" name="type" aria-label="Filter startups by type"><option value="">All Types</option><option value="public" {% if filter_type == 'public' %}selected{% endif %}>Public</option><option value="individual" {% if filter_type == 'individual' %}selected{% endif %}>Individual</option></select>
+            </form>
+            <div class="yc-toolbar-actions">
+                {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
+                <a href="{% url 'public_report' kind='startups' %}" class="btn btn-outline"><i class="fas fa-file-csv"></i> CSV</a>
+                <a href="{% url 'public_report_pdf' kind='startups' %}" class="btn btn-outline"><i class="fas fa-file-pdf"></i> PDF</a>
+                {% if user.profile.is_admin %}<a href="{% url 'admin:staff_startup_changelist' %}" class="btn btn-outline"><i class="fas fa-shield-halved"></i> Manage Startups</a>{% endif %}
+            </div>
+        </div>
+
+        <div class="yc-countline">
+            <span>{% if search_query or industry_filter or status_filter or filter_type %}Showing <strong>{{ page_obj.paginator.count }}</strong> startups matching your filters.{% else %}<strong>{{ page_obj.paginator.count }}</strong> startups in the directory.{% endif %}</span>
+            {% if search_query or industry_filter or status_filter or filter_type %}<a class="yc-clear" href="{% url 'staff:startups' %}"><i class="fas fa-xmark"></i> Clear filters</a>{% endif %}
+        </div>
+
+        <div class="yc-grid" data-stagger="55">
+            {% for s in startup_list %}
+            <article class="yc-card">
+                <div class="yc-thumb">
+                    {% with parts=s.name.split %}<span class="yc-fb">{{ parts.0|first|upper }}{% if parts.1 %}{{ parts.1|first|upper }}{% endif %}</span>{% endwith %}
+                    <img src="{% static 'img/startups/' %}{{ s.slug }}-cover.jpg" alt="" loading="lazy" decoding="async" onerror="this.remove()">
+                    <span class="yc-thumb-cta">View <i class="fas fa-arrow-right"></i></span>
+                </div>
+                <div class="yc-card-body">
+                    <div class="yc-card-meta">
+                        <span class="type-badge {{ s.startup_type }}">{{ s.get_startup_type_display }}</span>
+                        <span class="status-pill {{ s.status }}">{{ s.get_status_display }}</span>
+                    </div>
+                    <h3 class="yc-card-name">{{ s.name }}</h3>
+                    {% if s.description %}<p class="yc-card-desc">{{ s.description|truncatewords:18 }}</p>{% endif %}
+                    <div class="yc-card-foot">
+                        <span class="yc-card-ind">{{ s.industry|default:"Venture" }}</span>
+                        <span class="yc-card-cta">Profile <i class="fas fa-arrow-right"></i></span>
+                    </div>
+                </div>
+                <a class="yc-card-link" href="{% url 'staff:startup_profile' slug=s.slug %}" aria-label="Open profile for {{ s.name }}"></a>
+            </article>
+            {% empty %}
+            <div class="yc-empty">
+                <i class="fas fa-rocket"></i>
+                <h3>No startups yet</h3>
+                <p>Add your first startup to get started.</p>
+                {% if user.is_authenticated %}<a href="{% url 'staff:startup_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add Startup</a>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        {% include "partials/pagination.html" %}
+    </section>
 </div>
-{% include "partials/pagination.html" %}
+
 <script>
-    (function () {
-        const filters = document.getElementById('startupFilters');
-        if (!filters) return;
+(function () {
+    'use strict';
+
+    /* ---- filters: instant submit on selects, debounced search ---- */
+    var filters = document.getElementById('startupFilters');
+    if (filters) {
         filters.querySelectorAll('select[name="industry"], select[name="status"], select[name="type"]').forEach(function (select) {
-            select.addEventListener('change', function () {
-                filters.requestSubmit();
-            });
+            select.addEventListener('change', function () { filters.requestSubmit(); });
         });
-    }());
+        var search = document.getElementById('startupSearch');
+        if (search) {
+            var timer = null;
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { filters.requestSubmit(); }, 450);
+            });
+        }
+    }
+
+    /* ---- showcase rail: arrows, drag, scroll-linked pan ---- */
+    var rail = document.getElementById('ycRail');
+    if (!rail) return;
+
+    var prev = document.getElementById('ycRailPrev');
+    var next = document.getElementById('ycRailNext');
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var userTouched = false;
+
+    function markTouched() { userTouched = true; }
+    ['pointerdown', 'wheel', 'touchstart', 'keydown', 'mouseover'].forEach(function (ev) {
+        rail.addEventListener(ev, markTouched, { passive: true });
+    });
+
+    function step() {
+        var card = rail.querySelector('.yc-shot');
+        return card ? card.getBoundingClientRect().width + 18 : 320;
+    }
+
+    function updateButtons() {
+        if (!prev || !next) return;
+        var max = rail.scrollWidth - rail.clientWidth - 2;
+        prev.disabled = rail.scrollLeft <= 2;
+        next.disabled = rail.scrollLeft >= max;
+    }
+
+    function nudge(dir) {
+        markTouched();
+        rail.scrollBy({ left: dir * step(), behavior: reduced ? 'auto' : 'smooth' });
+    }
+
+    if (prev) prev.addEventListener('click', function () { nudge(-1); });
+    if (next) next.addEventListener('click', function () { nudge(1); });
+    rail.addEventListener('scroll', updateButtons, { passive: true });
+    window.addEventListener('resize', updateButtons);
+    updateButtons();
+
+    /* drag to scroll */
+    var dragging = false, startX = 0, startLeft = 0, moved = 0;
+    rail.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        dragging = true; moved = 0;
+        startX = e.clientX; startLeft = rail.scrollLeft;
+        rail.classList.add('is-dragging');
+    });
+    rail.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        var dx = e.clientX - startX;
+        if (Math.abs(dx) > 3) { moved = Math.abs(dx); }
+        rail.scrollLeft = startLeft - dx;
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+        rail.addEventListener(ev, function () {
+            if (!dragging) return;
+            dragging = false;
+            rail.classList.remove('is-dragging');
+        });
+    });
+    rail.addEventListener('click', function (e) {
+        if (moved > 6) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+
+    /* scroll-linked pan: showcase drifts as the page scrolls past,
+       until the visitor interacts with the rail */
+    var section = rail.closest('.yc-showcase');
+    var ticking = false;
+    function pan() {
+        ticking = false;
+        if (userTouched || reduced || !section) return;
+        var rect = section.getBoundingClientRect();
+        var vh = window.innerHeight || 1;
+        var progress = (vh - rect.top) / (vh + rect.height);
+        progress = Math.max(0, Math.min(1, progress));
+        var max = rail.scrollWidth - rail.clientWidth;
+        if (max > 0) rail.scrollLeft = progress * max * 0.92;
+        updateButtons();
+    }
+    window.addEventListener('scroll', function () {
+        if (!ticking) { ticking = true; window.requestAnimationFrame(pan); }
+    }, { passive: true });
+    pan();
+}());
 </script>
 {% endblock %}

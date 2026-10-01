@@ -211,10 +211,12 @@ def startups(request):
             industry_options.append({'value': f'industry:{industry}', 'label': industry})
     query_params = request.GET.copy()
     query_params.pop('page', None)
+    showcase = list(startup_list[:8])
     page_obj = Paginator(startup_list, 25).get_page(request.GET.get('page'))
     context = {
         'startup_list': page_obj,
         'page_obj': page_obj,
+        'showcase': showcase,
         'filter_type': startup_type or '',
         'search_query': search_query,
         'industry_filter': industry_filter,

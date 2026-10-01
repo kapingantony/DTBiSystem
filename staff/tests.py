@@ -727,3 +727,76 @@ class SectorFilterTests(TestCase):
     def test_sector_words_match_inside_labeled_industry(self):
         Startup.objects.create(name='Solar One', industry='Renewable Energy', status='active')
         self.assertEqual(self._count('energy'), 1)
+
+
+class YcDirectoryPageTests(TestCase):
+    """The YC-style startups directory keeps its functional contract."""
+
+    def setUp(self):
+        self.staff_user = get_user_model().objects.create_user(
+            username='ycstaff', password='secret1234', email='ycstaff@example.com', is_staff=True,
+        )
+        profile, _ = UserProfile.objects.get_or_create(user=self.staff_user)
+        profile.user_type = 'staff'
+        profile.save(update_fields=['user_type'])
+        self.client.force_login(self.staff_user)
+        self.s1 = Startup.objects.create(name='Solar One', industry='Renewable Energy', status='active')
+        self.s2 = Startup.objects.create(name='PayFlow Limited', industry='Fintech & E-commerce', status='active')
+        Startup.objects.create(name='Hidden Venture', industry='Fintech & E-commerce', status='inactive')
+
+    def test_page_renders_yc_shell(self):
+        response = self.client.get(reverse('staff:startups'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="yc-page"')
+        self.assertContains(response, 'style/startups-yc.css')
+        self.assertContains(response, 'id="ycRail"')
+        self.assertContains(response, 'class="yc-grid"')
+
+    def test_showcase_context_lists_featured_startups(self):
+        response = self.client.get(reverse('staff:startups'))
+        showcase = response.context['showcase']
+        self.assertEqual(len(showcase), 2)
+        for startup in showcase:
+            self.assertContains(
+                response, reverse('staff:startup_profile', kwargs={'slug': startup.slug})
+            )
+
+    def test_filter_form_contract_preserved(self):
+        response = self.client.get(reverse('staff:startups'), {'q': 'Pay', 'status': 'active'})
+        self.assertContains(response, 'id="startupFilters"')
+        self.assertContains(response, 'id="startupSearch"')
+        self.assertContains(response, 'name="q" value="Pay"')
+        self.assertContains(response, 'name="industry"')
+        self.assertContains(response, 'name="status"')
+        self.assertContains(response, 'name="type"')
+
+    def test_report_and_add_links_present(self):
+        response = self.client.get(reverse('staff:startups'))
+        self.assertContains(response, reverse('staff:startup_create'))
+        self.assertContains(response, reverse('public_report', kwargs={'kind': 'startups'}))
+        self.assertContains(response, reverse('public_report_pdf', kwargs={'kind': 'startups'}))
+
+    def test_admin_sees_manage_link(self):
+        # Admins are superusers: the sync_user_profile_role signal keeps
+        # non-superusers on 'staff', and every login re-runs that signal.
+        admin = get_user_model().objects.create_superuser(
+            username='ycadmin', password='secret1234', email='ycadmin@example.com',
+        )
+        self.client.force_login(admin)
+        response = self.client.get(reverse('staff:startups'))
+        self.assertContains(response, reverse('admin:staff_startup_changelist'))
+
+    def test_grid_links_every_visible_startup(self):
+        response = self.client.get(reverse('staff:startups'))
+        self.assertContains(response, reverse('staff:startup_profile', kwargs={'slug': self.s1.slug}))
+        self.assertContains(response, reverse('staff:startup_profile', kwargs={'slug': self.s2.slug}))
+        # Inactive startups stay hidden from non-admin visitors
+        self.assertNotContains(response, 'Hidden Venture')
+
+    def test_empty_state_renders_without_showcase(self):
+        Startup.objects.all().delete()
+        response = self.client.get(reverse('staff:startups'))
+        self.assertContains(response, 'No startups yet')
+        self.assertContains(response, 'yc-empty')
+        self.assertEqual(response.context['showcase'], [])
+        self.assertNotContains(response, 'id="ycRail"')
