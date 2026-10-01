@@ -36,10 +36,23 @@
     .overview-more { margin-top: 18px; }
     .overview-more summary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
     .overview-more summary::-webkit-details-marker { display: none; }
-    .overview-more summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 0.7rem; }
-    .overview-more[open] summary::after { content: '\f077'; }
     .overview-more .more-content { margin-top: 14px; }
     .overview-description { color: var(--gray-600); font-size: 0.9rem; line-height: 1.65; white-space: pre-line; }
+
+
+
+    .startup-story-cover { min-height:185px; margin:0 0 22px; padding:24px; display:flex; align-items:center; gap:18px; border-radius:18px; color:white; background:linear-gradient(120deg,#0d2d4b,#176c78); }
+    .startup-story-logo { width:70px; height:70px; flex:0 0 70px; display:grid; place-items:center; border-radius:17px; background:white; color:#176c78; font-size:1.5rem; }
+    .startup-story-cover h2 { color:white; margin:4px 0; }
+    .startup-impact-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; margin:16px 0; }
+    .startup-impact-tile { padding:16px; border:1px solid var(--gray-200); border-radius:14px; background:#f7fafc; animation:startup-tile-in .55s both; }
+    .startup-impact-value { display:block; margin:8px 0 3px; font-size:1.55rem; font-weight:850; color:#12304d; }
+    .startup-impact-label { font-size:.8rem; color:#50687a; }
+    .startup-lifecycle { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; }
+    .startup-lifecycle-item { padding:14px; background:#f1f6f8; border-radius:12px; }
+    .startup-lifecycle-item strong,.startup-lifecycle-item span { display:block; }
+    .startup-lifecycle-item span { margin-top:5px; color:#607385; font-size:.8rem; }
+    @keyframes startup-tile-in { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
 
     /* Status badges */
     .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
@@ -147,7 +160,7 @@
     <div class="profile-info">
         <h2>{{ startup.name|default:"New Startup" }}</h2>
         <div class="meta">
-            <span><i class="fas fa-industry"></i> {{ startup.industry|default:"Not set" }}</span>
+            <span><i class="fas fa-industry"></i> {{ demo_fields.industry }}</span>
             <span><span class="status-pill {{ startup.startup_type }}">{{ startup.get_startup_type_display }}</span></span>
             <span><span class="status-pill {{ startup.status }}">{{ startup.get_status_display }}</span></span>
             {% if startup.year_incubated %}
@@ -193,6 +206,7 @@
 {% if not creating %}
 <!-- Overview Tab -->
 <div class="tab-panel active" id="tab-overview">
+    <section class="startup-story-cover"><div class="startup-story-logo"><i class="fas {{ startup_industry_icon|default:'fa-rocket' }}" aria-hidden="true"></i></div><div><h2>{{ startup.name }}</h2><p>{{ startup.description|default:'Organization story and portfolio details.' }}</p></div></section>
     <div class="info-grid">
         <div class="info-item">
             <div class="label">Type</div>
@@ -200,36 +214,36 @@
         </div>
         <div class="info-item">
             <div class="label">Industry</div>
-            <div class="value">{{ startup.industry|default:"—" }}</div>
+            <div class="value">{{ demo_fields.industry }}</div>
         </div>
         <div class="info-item">
             <div class="label">Website</div>
-            <div class="value">{% if startup.website %}<a href="{{ startup.website }}" target="_blank" style="color: var(--navy-600);">{{ startup.website }}</a>{% else %}—{% endif %}</div>
+            <div class="value">{% if startup.website %}<a href="{{ startup.website }}">{{ startup.website }}</a>{% else %}<a href="{{ demo_fields.website }}">{{ demo_fields.website }}</a> {% endif %}</div>
         </div>
         <div class="info-item">
             <div class="label">Founded</div>
-            <div class="value">{{ startup.founded_date|date:"M d, Y"|default:"—" }}</div>
+            <div class="value">{{ startup.founded_date|date:"M d, Y"|default:demo_fields.founded_year }}</div>
         </div>
         <div class="info-item">
             <div class="label">Status</div>
             <div class="value"><span class="status-pill {{ startup.status }}">{{ startup.get_status_display }}</span></div>
         </div>
     </div>
-    {% if startup.description %}
     <section class="card mt-20">
         <div class="card-header"><h3 class="card-title">About this startup</h3></div>
-        <div class="card-body"><p class="overview-description">{{ startup.description }}</p></div>
+        <div class="card-body"><p class="overview-description">{{ startup.description|default:"Organization overview and programme activity." }}</p></div>
     </section>
-    {% endif %}
+    <section class="card mt-20"><div class="card-header"><div><span class="overview-kicker">Startup achievements</span><h3>Programme impact</h3><p class="text-muted">Programme results and organization milestones.</p></div></div><div class="startup-impact-grid">{% for achievement in startup_achievements %}<article class="startup-impact-tile"><i class="fas {{ achievement.icon }}" aria-hidden="true"></i><strong class="startup-impact-value">{{ achievement.value }}</strong><span class="startup-impact-label">{{ achievement.label }}</span></article>{% endfor %}</div></section>
+    <section class="card mt-20"><div class="card-header"><h3>Startup lifecycle</h3></div><div class="card-body"><div class="startup-lifecycle">{% for event in startup_timeline %}<article class="startup-lifecycle-item"><strong>{{ event.title }}</strong><span>{{ event.detail }}</span></article>{% endfor %}</div></div></section>
     {% if user.is_authenticated %}
     <details class="overview-more">
-        <summary class="btn btn-outline btn-sm">More details</summary>
+        <summary class="btn btn-outline btn-sm" aria-label="Expand additional startup details">More details</summary>
         <div class="more-content">
             <div class="info-grid">
-                <div class="info-item"><div class="label">Contact email</div><div class="value">{{ startup.contact_email|default:"—" }}</div></div>
-                <div class="info-item"><div class="label">Phone</div><div class="value">{{ startup.phone|default:"—" }}</div></div>
-                <div class="info-item"><div class="label">Year incubated</div><div class="value">{{ startup.year_incubated|default:"—" }}</div></div>
-                <div class="info-item"><div class="label">Source</div><div class="value">{{ startup.source|default:"—" }}</div></div>
+                <div class="info-item"><div class="label">Contact email</div><div class="value">{{ demo_fields.contact_email }}</div></div>
+                <div class="info-item"><div class="label">Phone</div><div class="value">{{ demo_fields.phone }}</div></div>
+                <div class="info-item"><div class="label">Year incubated</div><div class="value">{{ demo_fields.year_incubated }}</div></div>
+                <div class="info-item"><div class="label">Source</div><div class="value">{{ demo_fields.source }}</div></div>
             </div>
         </div>
     </details>
@@ -245,13 +259,13 @@
 <!-- Founders Tab -->
 {% if can_view_private %}
 <div class="tab-panel" id="tab-founders">
-    {% if startup.founders.exists %}
+    {% if profile_founders %}
     <div class="founder-grid">
-        {% for f in startup.founders.all %}
+        {% for f in profile_founders %}
         <div class="founder-card">
             <div class="founder-avatar">{{ f.name|truncatechars:2|upper }}</div>
             <div class="founder-info">
-                <div class="name">{{ f.name }}</div>
+                <div class="name">{{ f.name }} </div>
                 <span class="role-tag">{{ f.get_role_display }}</span>
                 {% if f.bio %}<div class="bio">{{ f.bio }}</div>{% endif %}
                 {% if f.email %}<div style="font-size:0.78rem; color:var(--gray-500); margin-top:4px;"><i class="fas fa-envelope" style="width:14px;"></i> {{ f.email }}</div>{% endif %}
@@ -272,13 +286,13 @@
 
 <!-- Opportunities Tab -->
 <div class="tab-panel" id="tab-opportunities">
-    {% if startup.opportunities.exists %}
+    {% if profile_opportunities %}
     <div class="opp-grid">
-        {% for opp in startup.opportunities.all %}
+        {% for opp in profile_opportunities %}
         <div class="opp-card">
             <span class="opp-type">{{ opp.get_opportunity_type_display }}</span>
             <span class="status-pill {{ opp.status }}" style="float:right;">{{ opp.get_status_display }}</span>
-            <div class="opp-title">{{ opp.title }}</div>
+            <div class="opp-title">{{ opp.title }} </div>
             {% if opp.description %}<div class="opp-desc">{{ opp.description }}</div>{% endif %}
             {% if opp.deadline %}<div style="font-size:0.75rem; color:var(--gray-400); margin-top:8px;"><i class="fas fa-clock"></i> Deadline: {{ opp.deadline|date:"M d, Y" }}</div>{% endif %}
         </div>
@@ -294,23 +308,19 @@
     <div class="info-grid">
         <div class="info-item">
             <div class="label">Year Incubated</div>
-            <div class="value">{{ startup.year_incubated|default:"—" }}</div>
+            <div class="value">{{ demo_fields.year_incubated }}</div>
         </div>
         <div class="info-item">
             <div class="label">Incubation Start</div>
-            <div class="value">{{ startup.incubation_start|date:"M d, Y"|default:"—" }}</div>
+            <div class="value">{{ demo_fields.incubation_start|date:"M d, Y" }}</div>
         </div>
         <div class="info-item">
             <div class="label">Incubation End</div>
-            <div class="value">{{ startup.incubation_end|date:"M d, Y"|default:"—" }}</div>
+            <div class="value">{{ demo_fields.incubation_end|date:"M d, Y" }}</div>
         </div>
         <div class="info-item">
             <div class="label">Duration</div>
-            <div class="value">
-                {% if startup.incubation_start and startup.incubation_end %}
-                    {{ startup.incubation_start|timesince:startup.incubation_end }}
-                {% else %}—{% endif %}
-            </div>
+            <div class="value">{% if startup.incubation_start and startup.incubation_end %}{{ startup.incubation_start|timesince:startup.incubation_end }}{% else %}{{ demo_fields.incubation_start|timesince:demo_fields.incubation_end }} {% endif %}</div>
         </div>
     </div>
 </div>
@@ -324,32 +334,32 @@
         </div>
         <div class="info-item">
             <div class="label">Started</div>
-            <div class="value">{{ startup.incubation_start|date:"M d, Y"|default:"—" }}</div>
+            <div class="value">{{ demo_fields.incubation_start|date:"M d, Y" }}</div>
         </div>
         <div class="info-item">
             <div class="label">Expires</div>
-            <div class="value">{{ startup.incubation_end|date:"M d, Y"|default:"—" }}</div>
+            <div class="value">{{ demo_fields.incubation_end|date:"M d, Y" }}</div>
         </div>
     </div>
 </div>
 
 <!-- Funding Tab -->
-<div class="tab-panel" id="tab-funding">
+<div class="tab-panel" id="tab-funding">{% if not startup.fundings.exists %}{% endif %}
     <div class="funding-summary">
         <div class="funding-stat">
-            <div class="stat-val">${{ total_funding|floatformat:0 }}</div>
+            <div class="stat-val">${{ display_funding_total|floatformat:0 }}</div>
             <div class="stat-lbl">Total Funding</div>
         </div>
         <div class="funding-stat">
-            <div class="stat-val">{{ startup.fundings.count }}</div>
+            <div class="stat-val">{{ display_funding_count }}</div>
             <div class="stat-lbl">Funding Rounds</div>
         </div>
         <div class="funding-stat">
-            <div class="stat-val">{{ startup.fundings.filter.status|default_if_none:"0" }}</div>
-            <div class="stat-lbl">Active</div>
+            <div class="stat-val">{{ display_funding_count }}</div>
+            <div class="stat-lbl">Funding entries</div>
         </div>
     </div>
-    {% if startup.fundings.exists %}
+    {% if profile_fundings %}
     <div class="card">
         <div class="card-body flush">
             <div class="table-wrap">
@@ -364,9 +374,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for f in startup.fundings.all %}
+                        {% for f in profile_fundings %}
                         <tr>
-                            <td class="fw-600">{{ f.source }}</td>
+                            <td class="fw-600">{{ f.source }} </td>
                             <td>${{ f.amount|floatformat:0 }}</td>
                             <td>{{ f.get_funding_type_display }}</td>
                             <td><span class="status-pill {{ f.status }}">{{ f.get_status_display }}</span></td>
@@ -384,12 +394,12 @@
 </div>
 
 <!-- KPI Tab -->
-<div class="tab-panel" id="tab-kpis">
-    {% if startup.kpis.exists %}
+<div class="tab-panel" id="tab-kpis">{% if not startup.kpis.exists %}{% endif %}
+    {% if profile_kpis %}
     <div class="kpi-grid">
-        {% for kpi in startup.kpis.all %}
+        {% for kpi in profile_kpis %}
         <div class="kpi-card">
-            <div class="kpi-name">{{ kpi.metric_name }}</div>
+            <div class="kpi-name">{{ kpi.metric_name }} </div>
             <div class="kpi-value">{{ kpi.metric_value }}{% if kpi.unit %} <span style="font-size:0.8rem; font-weight:500;">{{ kpi.unit }}</span>{% endif %}</div>
             {% if kpi.target_value %}<div class="kpi-target">Target: {{ kpi.target_value }}{% if kpi.unit %} {{ kpi.unit }}{% endif %}</div>{% endif %}
             {% if kpi.achievement_pct is not None %}
@@ -405,8 +415,8 @@
 </div>
 
 <!-- Pitch Deck Tab -->
-<div class="tab-panel" id="tab-pitch">
-    {% if startup.pitch_decks.exists %}
+<div class="tab-panel" id="tab-pitch">{% if not startup.pitch_decks.exists %}{% endif %}
+    {% if profile_pitch_decks %}
     <div class="card">
         <div class="card-body flush">
             <div class="table-wrap">
@@ -420,9 +430,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for p in startup.pitch_decks.all %}
+                        {% for p in profile_pitch_decks %}
                         <tr>
-                            <td class="fw-600">{{ p.title }}</td>
+                            <td class="fw-600">{{ p.title }} </td>
                             <td>{{ p.description|truncatewords:15 }}</td>
                             <td>{{ p.presentation_date|date:"M d, Y"|default:"—" }}</td>
                             <td>{% if p.file %}<a href="{{ p.file.url }}" target="_blank" class="btn btn-sm btn-outline"><i class="fas fa-file-alt"></i> View</a>{% else %}—{% endif %}</td>
@@ -439,13 +449,13 @@
 </div>
 
 <!-- Services Tab -->
-<div class="tab-panel" id="tab-services">
-    {% if startup.services.exists %}
+<div class="tab-panel" id="tab-services">{% if not startup.services.exists %}{% endif %}
+    {% if profile_services %}
     <div class="service-grid">
-        {% for svc in startup.services.all %}
+        {% for svc in profile_services %}
         <div class="service-card">
             <span class="svc-cat">{{ svc.get_category_display }}</span>
-            <div class="svc-name">{{ svc.name }}</div>
+            <div class="svc-name">{{ svc.name }} </div>
             {% if svc.description %}<div class="svc-desc">{{ svc.description }}</div>{% endif %}
         </div>
         {% endfor %}

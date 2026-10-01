@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from staff.models import Startup
-from staff.startup_catalog import STARTUP_CATALOG
+from staff.startup_catalog import STARTUP_CATALOG, STARTUP_COHORT_YEAR_UPDATES
 
 
 class Command(BaseCommand):
@@ -14,6 +14,7 @@ class Command(BaseCommand):
         # the public directory before publishing this source catalog.
         retired_count = Startup.objects.filter(directory_visible=True).update(directory_visible=False)
         source = "Startup catalog · modified.xlsx"
+        cohort_years = {name.casefold(): year for name, year in STARTUP_COHORT_YEAR_UPDATES}
         created_count = 0
         updated_count = 0
         seen = set()
@@ -35,6 +36,8 @@ class Command(BaseCommand):
             startup.source = source
             startup.directory_visible = True
             startup.status = "active"
+            if name.casefold() in cohort_years:
+                startup.year_incubated = cohort_years[name.casefold()]
             startup.save()
 
         self.stdout.write(self.style.SUCCESS(

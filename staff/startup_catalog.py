@@ -41,3 +41,13 @@ STARTUP_CATALOG = [
     ("Cyber Security", "Equipoint", "Fleet and fuel monitoring solution."),
     ("Cyber Security", "Aim Firms", "Online data backup and recovery solution."),
 ]
+
+# Year values supplied by the programme. These are cohort years, not inferred
+# founding dates, and are assigned only to matching published directory records.
+STARTUP_COHORT_YEAR_UPDATES = [
+    ("A-Trader", 2017),
+    ("Millennium Engineering Enterprise", 2016),
+    ("Kwe2Africa.com Ltd", 2017),
+    ("Shule Yetu.Com", 2014),
+    ("Time Tickets (Dephics)", 2015),
+]

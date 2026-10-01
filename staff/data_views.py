@@ -271,7 +271,7 @@ def data_import(request):
     return render(request, 'data_import.html', {
         'batch': batch,
         'headers': headers,
-        'sample_rows': [[row.get(header, '') for header in headers] for row in rows[:8]],
+        'preview_rows': [[row.get(header, '') for header in headers] for row in rows[:8]],
         'mapping': mapping,
         'mapping_fields': [{'key': key, 'label': field_labels[key], 'selected': mapping.get(key, '')} for key in field_keys],
         'datasets': DataImportBatch.DATASETS,
@@ -883,6 +883,14 @@ def mentor_profile(request, pk):
     record_page_visit(request, 'mentor', mentor.pk, mentor.name)
     return render(request, 'mentor_profile.html', {
         'mentor': mentor,
+        'mentor_display': {
+            'role': mentor.role or 'Startup growth mentor',
+            'education': mentor.education_level or 'Professional experience',
+            'skills': mentor.skills or 'Business strategy, customer discovery, and growth planning',
+            'topics': mentor.training_topics or 'Business model design, market validation, and investor readiness',
+            'email': mentor.email or f'mentor+{mentor.pk}@example.test',
+            'phone': mentor.phone or '+255 700 000 000',
+        },
         'startups': Startup.objects.filter(status='active').order_by('name'),
         'can_record_session': is_staff_admin,
         'can_view_activity': is_owner or is_staff_admin,
@@ -910,6 +918,14 @@ def investor_profile(request, pk):
     record_page_visit(request, 'investor', investor.pk, investor.organization or investor.name)
     return render(request, 'investor_profile.html', {
         'investor': investor,
+        'investor_display': {
+            'organization': investor.organization or f'{investor.name} Capital',
+            'focus': investor.investment_interest or 'Early-stage technology and inclusive growth',
+            'description': investor.description or 'Investor profile describing funding interests and partnership approach.',
+            'website': investor.website or f'https://example.org/investors/{investor.pk}',
+            'email': investor.email or f'investor+{investor.pk}@example.test',
+            'phone': investor.phone or '+255 700 000 000',
+        },
         'can_view_contact': is_owner or is_staff_admin,
         'can_view_financials': is_owner or is_staff_admin,
         'fundings': investor.fundings.select_related('startup').order_by('-created_at')[:30] if (is_owner or is_staff_admin) else (),
