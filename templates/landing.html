@@ -8,27 +8,44 @@
 <main class="overview-page">
     <section class="overview-hero">
         <div class="overview-hero-copy">
+            <div class="hero-mesh" aria-hidden="true"></div>
+            <span class="hero-orb hero-orb-a" aria-hidden="true"></span>
+            <span class="hero-orb hero-orb-b" aria-hidden="true"></span>
+            <span class="hero-orb hero-orb-c" aria-hidden="true"></span>
             <div class="overview-hero-slideshow" aria-hidden="true">
                 <img class="is-active" src="{% static 'img/brands/staff.jpeg' %}" alt="">
                 <img src="{% static 'img/brands/staff1.jpeg' %}" alt="">
                 <img src="{% static 'img/brands/staff2.jpeg' %}" alt="">
                 <img src="{% static 'img/brands/staff3.jpeg' %}" alt="">
             </div>
-            <canvas class="ambient-binary ambient-binary-hero" aria-hidden="true"></canvas>
+            <div class="hero-grid" aria-hidden="true"></div>
+            <canvas class="ambient-field ambient-field-hero" aria-hidden="true"></canvas>
             <div class="overview-hero-text">
-                <span class="overview-eyebrow"><i class="fas fa-sparkles"></i> BUNI &amp; DTBi innovation ecosystem</span>
-                <h1>From early innovation to thriving ventures.</h1>
-                <p>Connect early support and incubation with the people, partnerships, resources, and measurable outcomes that help ventures grow.</p>
-                <div class="overview-actions">
+                <span class="overview-eyebrow hero-rise hero-rise-1"><i class="fas fa-sparkles"></i> BUNI &amp; DTBi innovation ecosystem</span>
+                <h1 class="hero-rise hero-rise-2">From early innovation to <span class="grad-gold-text">thriving ventures</span>.</h1>
+                <p class="hero-rise hero-rise-3">Connect early support and incubation with the people, partnerships, resources, and measurable outcomes that help ventures grow.</p>
+                <div class="overview-actions hero-rise hero-rise-4">
                     <a href="{% url 'staff:register' %}" class="overview-primary-action">Get Started</a>
                     <a href="{% url 'staff:user_login' %}" class="overview-secondary-action">Enter workspace</a>
                     <a href="{% url 'staff:partnership_form' %}" class="overview-secondary-action">Partner with us</a>
+                </div>
+                <div class="hero-chips hero-rise hero-rise-5">
+                    <span class="hero-chip"><i class="fas fa-circle"></i> <b>{{ system_stats.startups|default:0 }}</b> startups</span>
+                    <span class="hero-chip"><i class="fas fa-circle"></i> <b>{{ system_stats.mentors|default:0 }}</b> mentors</span>
+                    <span class="hero-chip"><i class="fas fa-circle"></i> <b>{{ system_stats.investors|default:0 }}</b> investors</span>
+                    <span class="hero-chip"><i class="fas fa-circle"></i> live ecosystem data</span>
+                </div>
+            </div>
+            <div class="hero-ticker" aria-hidden="true">
+                <div class="hero-ticker-track">
+                    <span>Innovation pipelines</span><span>Mentorship sessions</span><span>Partnership deals</span><span>Funding tracked</span><span>Investor readiness</span><span>Opportunity board</span>
+                    <span>Innovation pipelines</span><span>Mentorship sessions</span><span>Partnership deals</span><span>Funding tracked</span><span>Investor readiness</span><span>Opportunity board</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="overview-search-section" aria-label="Search the system overview">
+    <section class="overview-search-section" data-reveal aria-label="Search the system overview">
         <form method="get" class="overview-search-form">
             <i class="fas fa-search" aria-hidden="true"></i>
             <input type="search" name="q" value="{{ search_query }}" placeholder="Search startups by name, industry, or description..." aria-label="Search startups">
@@ -36,7 +53,7 @@
         </form>
     </section>
 
-    <section class="overview-section-head">
+    <section class="overview-section-head" data-reveal>
         <div>
             <span class="overview-kicker">Quick summary</span>
             <h2>Software's data insight</h2>
@@ -44,7 +61,7 @@
         <span class="overview-updated"><i class="fas fa-circle"></i> Live from the system</span>
     </section>
 
-    <section class="overview-stats-grid" aria-label="System statistics">
+    <section class="overview-stats-grid" data-stagger="110" aria-label="System statistics">
         <article class="overview-stat-card">
             <span class="overview-stat-icon"><i class="fas fa-rocket"></i></span>
             <div><span class="overview-stat-label">Startups</span><strong>{{ system_stats.startups }}</strong><small>Profiles in the hub</small></div>
@@ -64,7 +81,7 @@
     </section>
 
     {% if search_query %}
-    <section class="overview-results">
+    <section class="overview-results" data-reveal>
         <div class="overview-section-head">
             <div><span class="overview-kicker">Search results</span><h2>Matches for “{{ search_query }}”</h2></div>
             <a href="{% url 'landing' %}" class="overview-clear-search">Clear search</a>
@@ -83,11 +100,11 @@
     </section>
     {% endif %}
 
-    <section class="overview-section-head" id="upcoming-opportunities">
+    <section class="overview-section-head" id="upcoming-opportunities" data-reveal>
         <div><span class="overview-kicker">What is happening</span><h2>Upcoming opportunities</h2><p>Open opportunities published by startups in the system.</p></div>
         <a class="overview-clear-search" href="{% url 'staff:startups' %}">Explore startups</a>
     </section>
-    <section class="overview-capability-grid" aria-label="Upcoming opportunities">
+    <section class="overview-capability-grid" data-stagger="100" aria-label="Upcoming opportunities">
         {% for opportunity in upcoming_opportunities %}
         <article class="card"><span class="badge">{{ opportunity.get_opportunity_type_display }}</span><h3>{{ opportunity.title }}</h3><p>{{ opportunity.description|default:'Details are available in the startup profile.'|truncatechars:150 }}</p><p class="text-muted">{{ opportunity.startup.name }}{% if opportunity.deadline %} · Closes {{ opportunity.deadline|date:'d M Y' }}{% endif %}</p><a class="btn btn-outline btn-sm" href="{% url 'staff:startup_profile' slug=opportunity.startup.slug %}">More details</a></article>
         {% empty %}<p class="overview-empty">No upcoming opportunities have been published yet.</p>{% endfor %}
@@ -95,7 +112,7 @@
 
     <section class="overview-capabilities">
         <div class="overview-section-head"><div><span class="overview-kicker">What this system manages</span><h2>Built around real work</h2></div></div>
-        <div class="overview-capability-grid">
+        <div class="overview-capability-grid" data-reveal data-stagger="100">
             <article><i class="fas fa-building"></i><h3>Startup profiles</h3><p>Keep company identity, incubation, contracts, and completion progress together.</p></article>
             <article><i class="fas fa-chart-simple"></i><h3>Performance and funding</h3><p>Track KPIs, funding records, targets, and the evidence behind growth.</p></article>
             <article><i class="fas fa-file-lines"></i><h3>Opportunity readiness</h3><p>Organize founders, services, pitch decks, and opportunities in one profile.</p></article>
@@ -103,7 +120,7 @@
         </div>
     </section>
 
-    <section class="visitor-pulse" aria-label="Visitor activity">
+    <section class="visitor-pulse" data-reveal aria-label="Visitor activity">
         <div class="visitor-pulse-heading"><span class="overview-kicker"><i class="fas fa-signal"></i> Visitor pulse</span><h2>People viewing the system</h2><p>Unique browser sessions recorded by the platform. Updated live.</p></div>
         <div class="visitor-pulse-grid">
             <div><strong data-visitor-count="total">{{ visitor_counts.total|default:0 }}</strong><span>Total visitors</span><small>Since launch</small></div>
