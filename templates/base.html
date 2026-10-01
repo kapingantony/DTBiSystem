@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}DTBi | BUNI Innovation Management System{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="stylesheet" href="{% static 'style/style.css' %}?v=20260930-aurora-auth2">
+    <link rel="stylesheet" href="{% static 'style/style.css' %}?v=20261001-stats">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
@@ -80,8 +80,18 @@
                 <div class="nav-section">Management</div>
                 {% if user.is_authenticated and user.profile.is_staff_role %}
                 <div class="nav-item">
+                    <a href="{% url 'staff:staff_home' %}" class="nav-link {% if request.resolver_match.url_name == 'staff_home' %}active{% endif %}">
+                        <i class="fas fa-home"></i><span>Staff Home</span>
+                    </a>
+                </div>
+                <div class="nav-item">
                     <a href="{% url 'staff:data_hub' %}" class="nav-link {% if request.resolver_match.url_name == 'data_hub' or request.resolver_match.url_name == 'data_import' or request.resolver_match.url_name == 'data_reports' or request.resolver_match.url_name == 'page_visit_admin' %}active{% endif %}">
                         <i class="fas fa-database"></i><span>Data Hub</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="{% url 'staff:statistics' %}" class="nav-link {% if request.resolver_match.url_name == 'statistics' or request.resolver_match.url_name == 'statistics_data' %}active{% endif %}">
+                        <i class="fas fa-chart-pie"></i><span>Statistics</span>
                     </a>
                 </div>
                 <div class="nav-item">
@@ -101,6 +111,14 @@
                 </div>
                 {% endif %}
                 {% if user.is_authenticated and user.profile.is_admin %}
+                <div class="nav-item">
+                    <a href="{% url 'staff:staff_management' %}" class="nav-link {% if request.resolver_match.url_name == 'staff_management' or request.resolver_match.url_name == 'staff_toggle' %}active{% endif %}">
+                        <i class="fas fa-users-gear"></i>
+                        <span>Staff Management</span>
+                    </a>
+                </div>
+                {% endif %}
+                {% if user.is_authenticated and user.profile.is_staff_role %}
                 <div class="nav-item">
                     <a href="{% url 'staff:account_management' %}" class="nav-link {% if request.resolver_match.url_name == 'account_management' or request.resolver_match.url_name == 'account_add' or request.resolver_match.url_name == 'account_edit' %}active{% endif %}">
                         <i class="fas fa-user-shield"></i>
@@ -130,6 +148,7 @@
                         <div class="sidebar-user-name">{{ user.get_full_name|default:user.username }}</div>
                         <div class="sidebar-user-role">
                             {% if user.profile.is_admin %}Hub Admin
+                            {% elif user.profile.user_type == 'staff' %}DTBi Staff
                             {% elif user.profile.startup %}{{ user.profile.startup.name }}
                             {% else %}Startup Owner{% endif %}
                         </div>

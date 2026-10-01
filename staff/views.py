@@ -1,3 +1,5 @@
+import re
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
@@ -6,7 +8,7 @@ from django.contrib.auth import login, authenticate, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
@@ -16,7 +18,7 @@ from django.http import JsonResponse
 from .models import (
     Startup, Founder, Opportunity, Funding,
     KPI, PitchDeck, ServiceOffered, Partnership, PartnershipHistory,
-    UserProfile, RegistrationRate, ProfileView, LoginNotification, SiteVisit,
+    UserProfile, RegistrationRate, ProfileView, LoginNotification, SiteVisit, PageVisit,
     Mentor, Investor
 )
 from .forms import (
@@ -48,6 +50,28 @@ STARTUP_INDUSTRY_CATEGORIES = (
     ('transport', 'Transport & Logistics', ('transport', 'logistics', 'mobility', 'delivery')),
     ('water', 'Water & Sanitation', ('water', 'sanitation', 'waste management')),
 )
+
+
+def _sector_keyword_pattern(keyword):
+    """Anchor a sector keyword to its left word edge only.
+
+    Left edge, not both: `edtech` must not match "Health & MedTech" (embedded),
+    while `agri` must still match "Agritech" (prefix).
+    """
+    return r'(?<![A-Za-z])' + re.escape(keyword)
+
+
+def sector_query(sector):
+    """Industry query matching one STARTUP_INDUSTRY_CATEGORIES entry."""
+    query = Q()
+    for keyword in sector[2]:
+        query |= Q(industry__iregex=_sector_keyword_pattern(keyword))
+    return query
+
+
+def industry_matches_sector_keywords(industry_text, keywords):
+    """True when `industry_text` contains a sector keyword at its left word edge."""
+    return any(re.search(_sector_keyword_pattern(keyword), industry_text) for keyword in keywords)
 
 
 def get_visitor_counts():
@@ -165,10 +189,7 @@ def startups(request):
         sector_key = industry_filter.split(':', 1)[1]
         sector = next((item for item in STARTUP_INDUSTRY_CATEGORIES if item[0] == sector_key), None)
         if sector:
-            sector_query = Q()
-            for keyword in sector[2]:
-                sector_query |= Q(industry__icontains=keyword)
-            startup_list = startup_list.filter(sector_query)
+            startup_list = startup_list.filter(sector_query(sector))
         else:
             industry_filter = ''
     elif industry_filter:
@@ -183,7 +204,10 @@ def startups(request):
     ]
     for industry in industries:
         industry_lower = industry.casefold()
-        if not any(any(keyword in industry_lower for keyword in keywords) for _key, _label, keywords in STARTUP_INDUSTRY_CATEGORIES):
+        if not any(
+            industry_matches_sector_keywords(industry_lower, keywords)
+            for _key, _label, keywords in STARTUP_INDUSTRY_CATEGORIES
+        ):
             industry_options.append({'value': f'industry:{industry}', 'label': industry})
     query_params = request.GET.copy()
     query_params.pop('page', None)
@@ -244,7 +268,7 @@ def user_login(request):
         if profile.user_type == 'admin':
             return redirect('staff:dashboard')
         if profile.user_type == 'staff':
-            return redirect('staff:staff_list')
+            return redirect('staff:staff_home')
         if profile.user_type == 'mentor' and hasattr(user, 'mentor_record'):
             return redirect('mentor_profile', pk=user.mentor_record.pk)
         if profile.user_type == 'investor' and hasattr(user, 'investor_record'):
@@ -617,10 +641,124 @@ def staff_list(request):
     return render(request, 'staff_list.html', {'staff_users': staff_users})
 
 
-def _require_account_admin(request):
+@login_required
+def staff_home(request):
+    """Landing page shown to staff (and admin) after signing in."""
     profile = get_profile(request.user)
-    if not (request.user.is_superuser or profile.is_admin):
-        raise PermissionDenied
+    if not (request.user.is_superuser or profile.user_type in ('admin', 'staff')):
+        return redirect('staff:dashboard')
+
+    startups_qs = Startup.objects.all()
+    pending = startups_qs.filter(status='pending').select_related().order_by('-created_at')
+    context = {
+        'counts': {
+            'pending_startups': pending.count(),
+            'active_startups': startups_qs.filter(status='active', directory_visible=True).count(),
+            'mentors': Mentor.objects.filter(is_active=True).count(),
+            'investors': Investor.objects.filter(status='active').count(),
+            'staff': User.objects.filter(is_staff=True, is_superuser=False).count(),
+        },
+        'pending_startups': pending[:5],
+    }
+    return render(request, 'staff_home.html', context)
+
+
+@login_required
+@require_http_methods(['GET'])
+def staff_management(request):
+    """Admin workspace: manage staff accounts and monitor staff activity."""
+    _require_account_admin(request)
+
+    query = (request.GET.get('q') or '').strip()
+    staff_qs = (
+        User.objects.filter(Q(is_staff=True) | Q(profile__user_type='admin'))
+        .select_related('profile').order_by('first_name', 'username')
+    )
+    if query:
+        staff_qs = staff_qs.filter(
+            Q(username__icontains=query) | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query) | Q(email__icontains=query)
+        )
+    staff_users = list(staff_qs)
+    user_ids = [u.pk for u in staff_users]
+
+    last_signin = {}
+    login_totals = {}
+    if user_ids:
+        for note in LoginNotification.objects.filter(user_id__in=user_ids).order_by('-timestamp'):
+            last_signin.setdefault(note.user_id, note)
+        login_totals = {
+            row['user_id']: row['n']
+            for row in LoginNotification.objects.filter(user_id__in=user_ids)
+            .values('user_id').annotate(n=Count('id'))
+        }
+
+    rows = []
+    for user in staff_users:
+        profile = get_profile(user)
+        rows.append({
+            'user': user,
+            'role': 'Admin' if (user.is_superuser or profile.is_admin) else 'Staff',
+            'is_admin_role': user.is_superuser or profile.is_admin,
+            'last_signin': last_signin.get(user.pk),
+            'login_total': login_totals.get(user.pk, 0),
+        })
+
+    today = timezone.localdate()
+    all_scope = User.objects.filter(Q(is_staff=True) | Q(profile__user_type='admin'))
+    activity = []
+    for note in LoginNotification.objects.filter(user__in=all_scope).select_related('user')[:20]:
+        activity.append({
+            'when': note.timestamp, 'user': note.user,
+            'event': 'Signed in', 'detail': f'IP {note.ip_address}', 'icon': 'fa-right-to-bracket',
+        })
+    for visit in PageVisit.objects.filter(visitor__in=all_scope).select_related('visitor')[:20]:
+        activity.append({
+            'when': visit.visited_at, 'user': visit.visitor,
+            'event': f'Viewed {visit.get_page_type_display().lower()}',
+            'detail': visit.display_name, 'icon': 'fa-eye',
+        })
+    activity.sort(key=lambda item: item['when'], reverse=True)
+    activity = activity[:30]
+
+    context = {
+        'staff_rows': rows,
+        'query': query,
+        'stats': {
+            'total': len(rows),
+            'active': sum(1 for r in rows if r['user'].is_active),
+            'disabled': sum(1 for r in rows if not r['user'].is_active),
+            'admins': sum(1 for r in rows if r['is_admin_role']),
+            'signins_today': LoginNotification.objects.filter(
+                user__in=all_scope, timestamp__date=today,
+            ).count(),
+        },
+        'activity': activity,
+    }
+    return render(request, 'staff_management.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def staff_toggle(request, pk):
+    """Enable or disable a staff login."""
+    _require_account_admin(request)
+    target = get_object_or_404(User, pk=pk, is_staff=True, is_superuser=False)
+    target.is_active = not target.is_active
+    target.save(update_fields=['is_active'])
+    state = 'enabled' if target.is_active else 'disabled'
+    messages.success(request, f'{target.get_full_name() or target.username} {state}.')
+    return redirect('staff:staff_management')
+
+
+def _require_account_admin(request, allow_staff=False):
+    """Admin-only by default; pass allow_staff=True for startup management scope."""
+    profile = get_profile(request.user)
+    if request.user.is_superuser or profile.is_admin:
+        return
+    if allow_staff and profile.user_type == 'staff':
+        return
+    raise PermissionDenied
 
 
 def _first_and_last(full_name):
@@ -673,8 +811,9 @@ def _provision_record_account(record, role):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def account_management(request):
-    _require_account_admin(request)
+    _require_account_admin(request, allow_staff=True)
     if request.method == 'POST' and request.POST.get('action') == 'provision_existing':
+        _require_account_admin(request)  # provisioning mentors/investors stays admin-only
         created = []
         for kind, queryset in (
             ('startup', Startup.objects.all()),
@@ -705,7 +844,7 @@ def account_management(request):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def account_add(request, kind):
-    _require_account_admin(request)
+    _require_account_admin(request, allow_staff=(kind == 'startup'))
     forms_by_kind = {'startup': StartupForm, 'mentor': MentorForm, 'investor': InvestorForm, 'staff': ManagedUserForm}
     if kind not in forms_by_kind:
         raise PermissionDenied
@@ -739,7 +878,7 @@ def account_add(request, kind):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def account_edit(request, kind, pk):
-    _require_account_admin(request)
+    _require_account_admin(request, allow_staff=(kind == 'startup'))
     models_by_kind = {'startup': (Startup, StartupForm), 'mentor': (Mentor, MentorForm), 'investor': (Investor, InvestorForm), 'staff': (User, ManagedUserForm)}
     if kind not in models_by_kind:
         raise PermissionDenied
@@ -767,7 +906,7 @@ def account_edit(request, kind, pk):
 @login_required
 @require_http_methods(['POST'])
 def account_delete(request, kind, pk):
-    _require_account_admin(request)
+    _require_account_admin(request, allow_staff=(kind == 'startup'))
     if kind == 'staff':
         record = get_object_or_404(User, pk=pk, is_staff=True, is_superuser=False)
     elif kind == 'startup':
@@ -793,7 +932,7 @@ def account_delete(request, kind, pk):
 @login_required
 @require_http_methods(['POST'])
 def startup_decision(request, pk, decision):
-    _require_account_admin(request)
+    _require_account_admin(request, allow_staff=True)
     startup = get_object_or_404(Startup, pk=pk)
     if decision not in ('approve', 'reject'):
         raise PermissionDenied

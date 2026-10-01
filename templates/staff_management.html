@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Management - DTBi | BUNI Innovation Management System{% endblock %}
+{% block page_title %}Staff Management{% endblock %}
+
+{% block content %}
+<div class="staff-management">
+    <div class="welcome-banner">
+        <h2>Staff management &amp; activity monitoring</h2>
+        <p>Create and manage staff logins, control account access, and keep an eye on what the team has been doing — sign-ins and recent page activity in one place.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+            <a class="btn btn-gold" href="{% url 'staff:account_add' kind='staff' %}"><i class="fas fa-user-plus"></i> Add staff member</a>
+            <a class="btn btn-outline" href="{% url 'staff:staff_list' %}"><i class="fas fa-users"></i> Team directory</a>
+            <a class="btn btn-outline" href="{% url 'staff:account_management' %}"><i class="fas fa-user-shield"></i> All accounts</a>
+        </div>
+    </div>
+
+    <div class="stats-grid mt-20">
+        <div class="stat-card blue"><div class="stat-value">{{ stats.total }}</div><div class="stat-label">Team accounts</div></div>
+        <div class="stat-card"><div class="stat-value">{{ stats.active }}</div><div class="stat-label">Active</div></div>
+        <div class="stat-card"><div class="stat-value">{{ stats.disabled }}</div><div class="stat-label">Disabled</div></div>
+        <div class="stat-card gold"><div class="stat-value">{{ stats.admins }}</div><div class="stat-label">Administrators</div></div>
+        <div class="stat-card"><div class="stat-value">{{ stats.signins_today }}</div><div class="stat-label">Sign-ins today</div></div>
+    </div>
+
+    <section class="card mt-20">
+        <div class="card-header" style="flex-wrap:wrap;gap:10px">
+            <h3>All staff accounts</h3>
+            <form method="get" role="search" style="display:flex;gap:8px;flex-wrap:wrap">
+                <input class="form-input" type="search" name="q" value="{{ query }}" placeholder="Search name, username, or email" aria-label="Search staff" style="width:250px;max-width:100%">
+                <button class="btn btn-outline" type="submit">Search</button>
+                {% if query %}<a class="btn btn-outline" href="{% url 'staff:staff_management' %}">Clear</a>{% endif %}
+            </form>
+        </div>
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Staff member</th>
+                            <th>Role</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Sign-ins</th>
+                            <th>Last sign-in</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in staff_rows %}
+                        {% with user=row.user %}
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:10px">
+                                    <span class="person-avatar blue" style="width:34px;height:34px;font-size:.72rem;flex:0 0 auto">{{ user.username|slice:":2"|upper }}</span>
+                                    <span>
+                                        <strong>{{ user.get_full_name|default:user.username }}</strong>
+                                        <span class="text-muted" style="display:block;font-size:.78rem">@{{ user.username }}{% if user.is_superuser %} · superuser{% endif %}</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td><span class="status-pill {% if row.is_admin_role %}pending{% else %}active{% endif %}">{{ row.role }}</span></td>
+                            <td>{{ user.email|default:'—' }}</td>
+                            <td><span class="badge-status {% if user.is_active %}active{% else %}inactive{% endif %}"><span class="dot-sm"></span> {% if user.is_active %}Active{% else %}Disabled{% endif %}</span></td>
+                            <td>{{ row.login_total }}</td>
+                            <td>
+                                {% if row.last_signin %}
+                                    {{ row.last_signin.timestamp|date:'d M Y, H:i' }}
+                                    <span class="text-muted" style="display:block;font-size:.75rem">IP {{ row.last_signin.ip_address }}</span>
+                                {% else %}
+                                    <span class="text-muted">Never</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                                    <a class="btn btn-outline btn-sm" href="{% url 'staff:account_edit' 'staff' user.pk %}">Edit</a>
+                                    {% if not user.is_superuser %}
+                                    <form method="post" action="{% url 'staff:staff_toggle' user.pk %}">{% csrf_token %}
+                                        <button class="btn btn-outline btn-sm" type="submit">{% if user.is_active %}Disable{% else %}Enable{% endif %}</button>
+                                    </form>
+                                    <form method="post" action="{% url 'staff:account_delete' 'staff' user.pk %}" onsubmit="return confirm('Delete this staff login?')">{% csrf_token %}
+                                        <button class="btn btn-outline btn-sm" type="submit">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endwith %}
+                    {% empty %}
+                        <tr><td colspan="7">{% if query %}No staff match “{{ query }}”.{% else %}No staff accounts have been created yet.{% endif %}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="card mt-20">
+        <div class="card-header">
+            <h3>Activity monitoring</h3>
+            <span class="badge">{{ activity|length }} recent events</span>
+        </div>
+        <div class="card-body">
+            {% if activity %}
+            <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px">
+                {% for item in activity %}
+                <li style="display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid var(--gray-200)">
+                    <span class="person-avatar blue" style="width:32px;height:32px;font-size:.68rem;flex:0 0 auto">{{ item.user.username|slice:":2"|upper }}</span>
+                    <span style="flex:1 1 auto;min-width:0">
+                        <strong>{{ item.user.get_full_name|default:item.user.username }}</strong>
+                        <span class="text-muted"> — {{ item.event }}</span>
+                        <span class="text-muted" style="display:block;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.detail }}</span>
+                    </span>
+                    <span class="text-muted" style="font-size:.78rem;white-space:nowrap">{{ item.when|date:'d M Y, H:i' }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted" style="margin:0">No staff sign-ins or page activity recorded yet.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

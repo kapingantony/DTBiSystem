@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Statistics - DTBi | BUNI Innovation Management System{% endblock %}
+{% block page_title %}Statistics{% endblock %}
+{% block content %}
+<div class="welcome-banner">
+    <h2>Programme statistics</h2>
+    <p>Live counts, industry mix, and monthly growth across startups, mentors, investors, partnerships, and participants. Figures refresh automatically every 30 seconds while this page is open.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px">
+        <button class="btn btn-primary" id="stats-refresh" type="button"><i class="fas fa-sync-alt"></i> Refresh now</button>
+        <a class="btn btn-outline" href="{% url 'staff:data_reports' %}"><i class="fas fa-file-download"></i> Period reports</a>
+        <span class="text-muted" style="font-size:.8rem">Updated <span id="stats-updated" aria-live="polite">{{ payload.generated_at }}</span></span>
+    </div>
+</div>
+
+<div class="stats-grid mt-20" id="stat-cards">
+    {% for card in payload.cards %}
+    <div class="stat-card {{ card.tone }}">
+        <div class="stat-value">{{ card.value }}</div>
+        <div class="stat-label">{{ card.label }}</div>
+        <div class="stat-sub">{{ card.hint }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<p class="text-muted" id="chart-fallback" hidden style="margin:-10px 0 20px">Chart library unavailable on this device — the tables below show the same figures.</p>
+
+<div class="grid-2 mt-20">
+    <section class="card">
+        <div class="card-header"><h3>Startups by industry</h3><span class="text-muted">Top 10</span></div>
+        <div class="card-body"><div class="chart-box"><canvas id="chart-industry" role="img" aria-label="Startups by industry"></canvas></div></div>
+    </section>
+    <section class="card">
+        <div class="card-header"><h3>Startup status</h3></div>
+        <div class="card-body"><div class="chart-box"><canvas id="chart-status" role="img" aria-label="Startup status split"></canvas></div></div>
+    </section>
+</div>
+
+<div class="grid-2 mt-20">
+    <section class="card">
+        <div class="card-header"><h3>New records by month</h3><span class="text-muted">Last 12 months</span></div>
+        <div class="card-body"><div class="chart-box"><canvas id="chart-monthly" role="img" aria-label="New records by month"></canvas></div></div>
+    </section>
+    <section class="card">
+        <div class="card-header"><h3>Partnership pipeline</h3></div>
+        <div class="card-body"><div class="chart-box"><canvas id="chart-partnerships" role="img" aria-label="Partnership requests by status"></canvas></div></div>
+    </section>
+</div>
+
+<section class="card mt-20">
+    <div class="card-header"><h3>Directory summary</h3></div>
+    <div class="card-body flush">
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Record type</th><th class="table-num">Total</th><th class="table-num">Active</th><th class="table-num">Added this month</th><th class="table-num">Added (30d)</th></tr></thead>
+                <tbody id="tbl-summary-body">
+                {% for row in payload.entity_rows %}
+                <tr><td>{{ row.entity }}</td><td class="table-num">{{ row.total }}</td><td class="table-num">{{ row.active }}</td><td class="table-num">{{ row.new_month }}</td><td class="table-num">{{ row.new_30d }}</td></tr>
+                {% empty %}<tr><td colspan="5">No records yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<div class="grid-2 mt-20">
+    <section class="card">
+        <div class="card-header"><h3>Industry breakdown</h3><span class="text-muted">Share of startups</span></div>
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Industry</th><th class="table-num">Startups</th><th class="table-num">Share</th></tr></thead>
+                    <tbody id="tbl-industry-body">
+                    {% for row in payload.industry_rows %}
+                    <tr><td>{{ row.industry }}</td><td class="table-num">{{ row.count }}</td><td class="table-num">{{ row.share }}%</td></tr>
+                    {% empty %}<tr><td colspan="3">No startup records yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    <section class="card">
+        <div class="card-header"><h3>Monthly additions</h3><span class="text-muted">Newest first</span></div>
+        <div class="card-body flush">
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Month</th><th class="table-num">Startups</th><th class="table-num">Mentors</th><th class="table-num">Investors</th><th class="table-num">Partnerships</th></tr></thead>
+                    <tbody id="tbl-monthly-body">
+                    {% for row in payload.monthly_rows %}
+                    <tr><td>{{ row.month }}</td><td class="table-num">{{ row.startups }}</td><td class="table-num">{{ row.mentors }}</td><td class="table-num">{{ row.investors }}</td><td class="table-num">{{ row.partnerships }}</td></tr>
+                    {% empty %}<tr><td colspan="5">No records in the last 12 months.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ payload|json_script:"stats-payload" }}
+<script src="{% static 'js/chart.umd.min.js' %}"></script>
+<script>
+(function () {
+    'use strict';
+    var seed = document.getElementById('stats-payload');
+    if (!seed) { return; }
+    var DATA_URL = "{% url 'staff:statistics_data' %}";
+    var state = JSON.parse(seed.textContent);
+    var charts = {};
+    var COLORS = ['#1665E0', '#C6A24E', '#0B3B7A', '#4C8DF6', '#D8B96F', '#072A55', '#86B4FB', '#9A7628', '#93A2B5', '#2E8BFF'];
+    var hasChart = typeof window.Chart !== 'undefined';
+
+    function esc(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function num(value) { return Number(value || 0); }
+
+    function renderCards(d) {
+        var box = document.getElementById('stat-cards');
+        if (!box) { return; }
+        box.innerHTML = d.cards.map(function (c) {
+            return '<div class="stat-card ' + esc(c.tone) + '">' +
+                '<div class="stat-value">' + esc(c.value) + '</div>' +
+                '<div class="stat-label">' + esc(c.label) + '</div>' +
+                '<div class="stat-sub">' + esc(c.hint) + '</div></div>';
+        }).join('');
+    }
+
+    function renderTables(d) {
+        document.getElementById('tbl-summary-body').innerHTML = d.entity_rows.map(function (r) {
+            return '<tr><td>' + esc(r.entity) + '</td><td class="table-num">' + num(r.total) + '</td>' +
+                '<td class="table-num">' + num(r.active) + '</td><td class="table-num">' + num(r.new_month) + '</td>' +
+                '<td class="table-num">' + num(r.new_30d) + '</td></tr>';
+        }).join('');
+        var industry = document.getElementById('tbl-industry-body');
+        industry.innerHTML = d.industry_rows.length ? d.industry_rows.map(function (r) {
+            return '<tr><td>' + esc(r.industry) + '</td><td class="table-num">' + num(r.count) + '</td>' +
+                '<td class="table-num">' + num(r.share).toFixed(1) + '%</td></tr>';
+        }).join('') : '<tr><td colspan="3">No startup records yet.</td></tr>';
+        document.getElementById('tbl-monthly-body').innerHTML = d.monthly_rows.map(function (r) {
+            return '<tr><td>' + esc(r.month) + '</td><td class="table-num">' + num(r.startups) + '</td>' +
+                '<td class="table-num">' + num(r.mentors) + '</td><td class="table-num">' + num(r.investors) + '</td>' +
+                '<td class="table-num">' + num(r.partnerships) + '</td></tr>';
+        }).join('');
+    }
+
+    function xTicks() {
+        return { color: '#5b6b7c', font: { size: 11 }, precision: 0 };
+    }
+
+    function upsert(id, config) {
+        var el = document.getElementById(id);
+        if (!el || !hasChart) { return; }
+        if (charts[id]) { charts[id].destroy(); }
+        charts[id] = new Chart(el, config);
+    }
+
+    function renderCharts(d) {
+        if (!hasChart) {
+            var fallback = document.getElementById('chart-fallback');
+            if (fallback) { fallback.hidden = false; }
+            return;
+        }
+
+        upsert('chart-industry', {
+            type: 'bar',
+            data: {
+                labels: d.industry.labels,
+                datasets: [{ label: 'Startups', data: d.industry.values, backgroundColor: '#1665E0', borderRadius: 4, barPercentage: 0.7 }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { displayColors: false } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: 'rgba(18,48,74,0.08)' }, ticks: xTicks() },
+                    y: { grid: { display: false }, ticks: { color: '#5b6b7c', font: { size: 11 } } }
+                }
+            }
+        });
+
+        var statusLabels = d.status.labels;
+        var statusValues = d.status.values;
+        var statusTotal = statusValues.reduce(function (a, b) { return a + num(b); }, 0);
+        if (statusTotal === 0) { statusLabels = ['No data']; statusValues = [1]; }
+        upsert('chart-status', {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{ data: statusValues, backgroundColor: ['#1665E0', '#C6A24E', '#93A2B5'], borderColor: '#ffffff', borderWidth: 2 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '62%',
+                plugins: { legend: { position: 'bottom', labels: { color: '#5b6b7c', font: { size: 11 }, boxWidth: 12, padding: 14 } } }
+            }
+        });
+
+        upsert('chart-monthly', {
+            type: 'line',
+            data: {
+                labels: d.monthly.labels,
+                datasets: [
+                    { label: 'Startups', data: d.monthly.startups, borderColor: COLORS[0], backgroundColor: COLORS[0], tension: 0.35, pointRadius: 2 },
+                    { label: 'Mentors', data: d.monthly.mentors, borderColor: COLORS[1], backgroundColor: COLORS[1], tension: 0.35, pointRadius: 2 },
+                    { label: 'Investors', data: d.monthly.investors, borderColor: COLORS[2], backgroundColor: COLORS[2], tension: 0.35, pointRadius: 2 },
+                    { label: 'Partnerships', data: d.monthly.partnerships, borderColor: COLORS[4], backgroundColor: COLORS[4], tension: 0.35, pointRadius: 2, borderDash: [5, 4] }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom', labels: { color: '#5b6b7c', font: { size: 11 }, boxWidth: 12, padding: 14 } } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#5b6b7c', font: { size: 10 }, maxRotation: 0, autoSkip: true } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(18,48,74,0.08)' }, ticks: xTicks() }
+                }
+            }
+        });
+
+        upsert('chart-partnerships', {
+            type: 'bar',
+            data: {
+                labels: d.partnerships.labels,
+                datasets: [{ label: 'Requests', data: d.partnerships.values, backgroundColor: COLORS, borderRadius: 4, barPercentage: 0.65 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { displayColors: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#5b6b7c', font: { size: 10 }, maxRotation: 40, minRotation: 0 } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(18,48,74,0.08)' }, ticks: xTicks() }
+                }
+            }
+        });
+    }
+
+    function stamp(d) {
+        var el = document.getElementById('stats-updated');
+        if (!el) { return; }
+        var when = new Date(d.generated_at);
+        el.textContent = isNaN(when.getTime()) ? String(d.generated_at) : when.toLocaleString();
+    }
+
+    function renderAll(d) {
+        renderCards(d);
+        renderTables(d);
+        renderCharts(d);
+        stamp(d);
+    }
+
+    function refresh(manual) {
+        if (!manual && document.hidden) { return Promise.resolve(); }
+        return fetch(DATA_URL, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+            .then(function (res) { if (!res.ok) { throw new Error('poll failed'); } return res.json(); })
+            .then(function (d) {
+                var changed = d.signature !== state.signature;
+                state = d;
+                if (manual || changed) { renderAll(d); } else { stamp(d); }
+            })
+            .catch(function () { /* transient poll failure: keep the last figures */ });
+    }
+
+    var button = document.getElementById('stats-refresh');
+    if (button) {
+        button.addEventListener('click', function () {
+            button.disabled = true;
+            refresh(true).then(function () { button.disabled = false; });
+        });
+    }
+    setInterval(function () { refresh(false); }, 30000);
+
+    renderCharts(state);
+    stamp(state);
+}());
+</script>
+{% endblock %}

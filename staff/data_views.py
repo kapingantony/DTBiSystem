@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import io
+import json
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from functools import wraps
 from html import escape
@@ -12,7 +14,8 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.db.models.functions import TruncMonth
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -89,6 +92,238 @@ def data_hub(request):
         'partnership_pipeline': partnership_pipeline,
         'upcoming_session_count': upcoming_session_count,
     })
+
+
+def _month_keys(count=12):
+    """Return `count` ascending 'YYYY-MM' keys ending with the current month."""
+    today = timezone.localdate().replace(day=1)
+    year, month = today.year, today.month
+    keys = []
+    for _ in range(count):
+        keys.append(f'{year:04d}-{month:02d}')
+        month -= 1
+        if month == 0:
+            month, year = 12, year - 1
+    keys.reverse()
+    return keys
+
+
+def _series_by_month(qs, keys, field='created_at'):
+    """Bucket a queryset's datetime field into counts for each month key."""
+    counts = dict.fromkeys(keys, 0)
+    if not keys:
+        return []
+    tz = timezone.get_current_timezone()
+    first = datetime.strptime(keys[0] + '-01', '%Y-%m-%d')
+    start = timezone.make_aware(first, tz)
+    rows = (
+        qs.filter(**{f'{field}__gte': start})
+        .annotate(bucket=TruncMonth(field, tzinfo=tz))
+        .values('bucket')
+        .annotate(n=Count('pk'))
+    )
+    for row in rows:
+        bucket = row['bucket']
+        if bucket is None:
+            continue
+        key = f'{bucket.year:04d}-{bucket.month:02d}'
+        if key in counts:
+            counts[key] = row['n']
+    return [counts[key] for key in keys]
+
+
+def _count_since(qs, field, since):
+    return qs.filter(**{f'{field}__gte': since}).count()
+
+
+def _choice_counts(qs, field, choices):
+    counts = {key: 0 for key, _label in choices}
+    for row in qs.values(field).annotate(n=Count('id')):
+        key = row.get(field)
+        if key in counts:
+            counts[key] = row['n']
+    return counts
+
+
+def _industry_rows():
+    """Aggregate startups by industry, merging blanks and case variants."""
+    buckets = {}
+    for row in Startup.objects.values('industry').annotate(n=Count('id')):
+        raw = (row['industry'] or '').strip()
+        label = raw or 'Unspecified'
+        key = label.lower()
+        if key in buckets:
+            buckets[key]['count'] += row['n']
+        else:
+            buckets[key] = {'industry': label, 'count': row['n']}
+    rows = sorted(buckets.values(), key=lambda item: (-item['count'], item['industry']))
+    total = sum(item['count'] for item in rows)
+    for item in rows:
+        item['share'] = round(100.0 * item['count'] / total, 1) if total else 0.0
+    return rows
+
+
+def statistics_payload():
+    """Aggregate dashboard statistics as a JSON-safe payload.
+
+    Shared by the page view and the polling endpoint so both always show
+    the same numbers. Recomputed fresh on every request; no caching layer.
+    """
+    now = timezone.now()
+    today = timezone.localdate()
+    tz = timezone.get_current_timezone()
+    month_start = timezone.make_aware(datetime.combine(today.replace(day=1), datetime.min.time()), tz)
+    since_30d = now - timedelta(days=30)
+
+    startups = Startup.objects.all()
+    mentors = Mentor.objects.all()
+    investors = Investor.objects.all()
+    partnerships = Partnership.objects.all()
+    journeys = ParticipantJourney.objects.all()
+    engagements = MentorEngagement.objects.all()
+    visits = PageVisit.objects.all()
+    users = get_user_model().objects.all()
+
+    startup_status = _choice_counts(startups, 'status', Startup.STATUS_CHOICES)
+    partnership_status = _choice_counts(partnerships, 'status', Partnership.STATUS_CHOICES)
+    pipeline_statuses = ('pending', 'under_review', 'approved', 'in_progress', 'on_hold')
+    open_partnerships = sum(partnership_status.get(key, 0) for key in pipeline_statuses)
+    active_partnerships = sum(partnership_status.get(key, 0) for key in ('approved', 'in_progress', 'on_hold'))
+
+    keys = _month_keys(12)
+    monthly = {
+        'labels': [datetime.strptime(key, '%Y-%m').strftime('%b %Y') for key in keys],
+        'startups': _series_by_month(startups, keys),
+        'mentors': _series_by_month(mentors, keys),
+        'investors': _series_by_month(investors, keys),
+        'partnerships': _series_by_month(partnerships, keys),
+    }
+    monthly_rows = [
+        {
+            'month': label,
+            'startups': monthly['startups'][i],
+            'mentors': monthly['mentors'][i],
+            'investors': monthly['investors'][i],
+            'partnerships': monthly['partnerships'][i],
+        }
+        for i, label in enumerate(monthly['labels'])
+    ]
+    monthly_rows.reverse()  # newest month first in the table
+
+    industry_rows = _industry_rows()
+    top = industry_rows[:10]
+    industry_chart = {
+        'labels': [item['industry'] for item in top],
+        'values': [item['count'] for item in top],
+    }
+    rest = industry_rows[10:]
+    if rest:
+        industry_chart['labels'].append('Other')
+        industry_chart['values'].append(sum(item['count'] for item in rest))
+
+    active_startups = startup_status.get('active', 0)
+    pending_startups = startup_status.get('pending', 0)
+    active_mentors = mentors.filter(is_active=True).count()
+    active_investors = investors.filter(status='active').count()
+    active_journeys = journeys.filter(status='active').count()
+    active_users = users.filter(is_active=True).count()
+    upcoming_sessions = engagements.filter(status__in=('scheduled', 'confirmed'), date__gte=today).count()
+
+    cards = [
+        {
+            'label': 'Startups', 'value': str(startups.count()), 'tone': 'blue',
+            'hint': f'{active_startups} active · {pending_startups} pending',
+        },
+        {
+            'label': 'Mentors', 'value': str(active_mentors), 'tone': 'gold',
+            'hint': f'{mentors.count()} mentor records',
+        },
+        {
+            'label': 'Investors', 'value': str(active_investors), 'tone': 'blue',
+            'hint': f'{investors.count()} investor records',
+        },
+        {
+            'label': 'Partnership pipeline', 'value': str(open_partnerships), 'tone': 'gold',
+            'hint': f'{partnerships.count()} requests · {active_partnerships} in delivery',
+        },
+        {
+            'label': 'Mentor sessions (30d)', 'value': str(_count_since(engagements, 'created_at', since_30d)), 'tone': 'blue',
+            'hint': f'{upcoming_sessions} upcoming scheduled or confirmed',
+        },
+        {
+            'label': 'Participants', 'value': str(active_journeys), 'tone': 'gold',
+            'hint': f'{journeys.count()} journeys recorded',
+        },
+        {
+            'label': 'Accounts', 'value': str(users.count()), 'tone': 'blue',
+            'hint': f'{active_users} active logins',
+        },
+        {
+            'label': 'Page visits (30d)', 'value': str(_count_since(visits, 'visited_at', since_30d)), 'tone': 'gold',
+            'hint': f'{visits.count()} tracked visits',
+        },
+    ]
+
+    entity_rows = [
+        {'entity': 'Startups', 'total': startups.count(), 'active': active_startups,
+         'new_month': _count_since(startups, 'created_at', month_start),
+         'new_30d': _count_since(startups, 'created_at', since_30d)},
+        {'entity': 'Mentors', 'total': mentors.count(), 'active': active_mentors,
+         'new_month': _count_since(mentors, 'created_at', month_start),
+         'new_30d': _count_since(mentors, 'created_at', since_30d)},
+        {'entity': 'Investors', 'total': investors.count(), 'active': active_investors,
+         'new_month': _count_since(investors, 'created_at', month_start),
+         'new_30d': _count_since(investors, 'created_at', since_30d)},
+        {'entity': 'Partnerships', 'total': partnerships.count(), 'active': active_partnerships,
+         'new_month': _count_since(partnerships, 'created_at', month_start),
+         'new_30d': _count_since(partnerships, 'created_at', since_30d)},
+        {'entity': 'Participant journeys', 'total': journeys.count(), 'active': active_journeys,
+         'new_month': _count_since(journeys, 'created_at', month_start),
+         'new_30d': _count_since(journeys, 'created_at', since_30d)},
+        {'entity': 'Mentor sessions', 'total': engagements.count(), 'active': upcoming_sessions,
+         'new_month': _count_since(engagements, 'created_at', month_start),
+         'new_30d': _count_since(engagements, 'created_at', since_30d)},
+        {'entity': 'Accounts', 'total': users.count(), 'active': active_users,
+         'new_month': _count_since(users, 'date_joined', month_start),
+         'new_30d': _count_since(users, 'date_joined', since_30d)},
+    ]
+
+    payload = {
+        'generated_at': now.astimezone().isoformat(timespec='seconds'),
+        'cards': cards,
+        'industry': industry_chart,
+        'status': {
+            'labels': [label for _key, label in Startup.STATUS_CHOICES],
+            'values': [startup_status.get(key, 0) for key, _label in Startup.STATUS_CHOICES],
+        },
+        'monthly': monthly,
+        'partnerships': {
+            'labels': [label for _key, label in Partnership.STATUS_CHOICES],
+            'values': [partnership_status.get(key, 0) for key, _label in Partnership.STATUS_CHOICES],
+        },
+        'entity_rows': entity_rows,
+        'monthly_rows': monthly_rows,
+        'industry_rows': industry_rows,
+    }
+    digest = json.dumps({k: v for k, v in payload.items() if k != 'generated_at'}, sort_keys=True)
+    payload['signature'] = hashlib.sha256(digest.encode('utf-8')).hexdigest()
+    return payload
+
+
+@staff_or_admin_required
+@require_http_methods(['GET'])
+def statistics(request):
+    return render(request, 'statistics.html', {
+        'payload': statistics_payload(),
+        'is_admin': request.user.is_superuser
+        or UserProfile.objects.filter(user=request.user, user_type='admin').exists(),
+    })
+
+
+@staff_or_admin_required
+@require_http_methods(['GET'])
+def statistics_data(request):
+    return JsonResponse(statistics_payload())
 
 
 @staff_or_admin_required

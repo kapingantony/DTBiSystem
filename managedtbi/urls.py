@@ -7,6 +7,7 @@ from django.contrib.auth import views as auth_views
 from staff.views import user_login, user_logout, dashboard, index, landing
 from staff import views as staff_views
 from staff import data_views as staff_data_views
+from staff.public_reports import public_report_csv, public_report_pdf
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -15,6 +16,8 @@ urlpatterns = [
     path('mentors/<int:pk>/', staff_data_views.mentor_profile, name='mentor_profile'),
     path('investors/', staff_views.investors, name='investors'),
     path('investors/<int:pk>/', staff_data_views.investor_profile, name='investor_profile'),
+    path('reports/<str:kind>.csv', public_report_csv, name='public_report'),
+    path('reports/<str:kind>.pdf', public_report_pdf, name='public_report_pdf'),
     path('staff/', include('staff.urls')),
     path('accounts/login/', LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('accounts/logout/', LogoutView.as_view(next_page='landing'), name='logout'),

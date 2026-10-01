@@ -394,7 +394,7 @@ class UserProfile(models.Model):
     email_notifications = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.user.username} ({self.get_user_type_display})"
+        return f"{self.user.username} ({self.get_user_type_display()})"
 
     @property
     def is_admin(self):
@@ -435,7 +435,7 @@ class RegistrationRate(models.Model):
         verbose_name_plural = "Registration Rates"
 
     def __str__(self):
-        return f"{self.get_date_range_display}: {self.total_registrations} registrations"
+        return f"{self.get_date_range_display()}: {self.total_registrations} registrations"
 
 
 class ProfileView(models.Model):

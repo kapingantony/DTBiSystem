@@ -7,6 +7,8 @@
 <div class="investors-page">
     <div class="filter-bar">
         <div><strong>{{ page_obj.paginator.count }}</strong> matching investors of {{ investor_count }} active</div>
+        <a class="btn btn-outline" href="{% url 'public_report' kind='investors' %}"><i class="fas fa-file-csv"></i> CSV</a>
+        <a class="btn btn-outline" href="{% url 'public_report_pdf' kind='investors' %}"><i class="fas fa-file-pdf"></i> PDF</a>
         {% if user.profile.is_admin %}<a class="btn btn-primary" href="{% url 'admin:staff_investor_add' %}"><i class="fas fa-plus"></i> Add Investor</a>{% endif %}
     </div>
     <form method="get" class="filter-bar" role="search"><input class="form-input" type="search" name="q" value="{{ search_query }}" placeholder="Search name, organization, investment focus, email"><select class="filter-select" name="interest"><option value="">All investment interests</option>{% for interest in interests %}<option value="{{ interest }}" {% if interest_filter == interest %}selected{% endif %}>{{ interest|truncatechars:70 }}</option>{% endfor %}</select><button class="btn btn-outline" type="submit">Search</button>{% if search_query or interest_filter %}<a class="btn btn-outline" href="{% url 'investors' %}">Clear</a>{% endif %}</form>
