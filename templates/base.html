@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="en" data-theme="{{ ui_theme|default:'light' }}">
+<html lang="en" class="no-js" data-theme="{{ ui_theme|default:'light' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}DTBi | BUNI Innovation Management System{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="stylesheet" href="{% static 'style/style.css' %}?v=20261001-ui-assets">
+    <link rel="stylesheet" href="{% static 'style/style.css' %}?v=20260930-aurora-auth2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
@@ -16,7 +19,7 @@
 
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
-            <canvas class="ambient-binary" id="ambientBinary" aria-hidden="true"></canvas>
+            <canvas class="ambient-field" aria-hidden="true"></canvas>
             <div class="sidebar-header">
                 <a class="sidebar-logo-pair" href="{% url 'landing' %}" aria-label="DTBi Innovation Management System">
                     <img src="{% static 'img/brands/dtbi logo.png' %}" alt="DTBi logo">
@@ -189,8 +192,8 @@
         </div>
     </div>
 
-    <script src="{% static 'js/script.js' %}?v=20261001-ui-assets"></script>
-    <script src="{% static 'js/ambient.js' %}?v=20261001-ui-assets"></script>
-    <script src="{% static 'js/fx.js' %}?v=20261001-ui-assets"></script>
+    <script src="{% static 'js/script.js' %}"></script>
+    <script src="{% static 'js/ambient.js' %}" defer></script>
+    <script src="{% static 'js/fx.js' %}" defer></script>
 </body>
 </html>
