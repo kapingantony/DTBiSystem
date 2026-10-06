@@ -900,7 +900,6 @@ table tbody tr:last-child td { border-bottom: none; }
 .badge-status.active { background: var(--navy-50); color: var(--navy-600); border-color: var(--navy-100); }
 .badge-status.pending { background: var(--gold-50); color: var(--gold-700); border-color: var(--gold-100); }
 .badge-status.inactive { background: var(--gray-100); color: var(--gray-500); border-color: var(--gray-200); }
-
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -2780,10 +2779,6 @@ select.filter-select, select.form-select { width: 100%; min-width: 0; }
   .sidebar, .topbar, .ambient-field, .hero-mesh, .hero-orb, .hero-ticker, .scroll-progress { display: none !important; }
   .main { margin-left: 0 !important; }
 }
-
-/* ============================================
-   STATISTICS PAGE
-   ============================================ */
 .chart-box {
   position: relative;
   height: 300px;

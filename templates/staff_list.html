@@ -1,30 +1,7 @@
 {% extends "base.html" %}
-
-{% block title %}Staff - DTBi | BUNI Innovation Management System{% endblock %}
-{% block page_title %}Staff Management{% endblock %}
-
+{% block title %}Staff — DTBi | BUNI{% endblock %}
+{% block page_title %}People · staff{% endblock %}
 {% block content %}
-<div class="staff-page">
-    <div class="filter-bar">
-        <div><strong>{{ staff_users|length }}</strong> staff accounts</div>
-        {% if user.profile.is_admin %}<a class="btn btn-primary" href="{% url 'admin:auth_user_add' %}"><i class="fas fa-user-plus"></i> Create Staff Account</a>{% endif %}
-    </div>
-    <div class="card">
-        <div class="card-body flush"><div class="table-wrap"><table>
-            <thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-            {% for staff_user in staff_users %}
-            <tr>
-                <td class="fw-600">{{ staff_user.username }}</td>
-                <td>{{ staff_user.get_full_name|default:"-" }}</td>
-                <td>{{ staff_user.email|default:"-" }}</td>
-                <td>{% if staff_user.profile.is_admin %}Admin{% else %}Staff{% endif %}</td>
-                <td><span class="badge-status {% if staff_user.is_active %}active{% else %}inactive{% endif %}"><span class="dot-sm"></span> {% if staff_user.is_active %}Active{% else %}Inactive{% endif %}</span></td>
-                <td>{% if user.profile.is_admin %}<a class="btn btn-sm btn-outline" href="{% url 'admin:auth_user_change' staff_user.pk %}">Update</a> <a class="btn btn-sm btn-outline" href="{% url 'admin:auth_user_delete' staff_user.pk %}">Delete</a>{% endif %}</td>
-            </tr>
-            {% empty %}<tr><td colspan="6">No staff accounts have been created.</td></tr>{% endfor %}
-            </tbody>
-        </table></div></div>
-    </div>
-</div>
+<section class="welcome-banner"><h2>Staff directory</h2><p>Administrator-only list of staff accounts created for this system.</p><div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:15px"><a class="btn btn-gold" href="{% url 'staff:account_add' 'staff' %}">Add staff account</a><a class="btn btn-outline" href="{% url 'staff:account_management' %}">Account management</a></div></section>
+<section class="card mt-20"><div class="card-header"><h3>Staff accounts</h3><span class="badge">{{ staff_users|length }}</span></div><div class="card-body flush"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>{% for staff_user in staff_users %}<tr><td class="fw-600">{{ staff_user.get_full_name|default:staff_user.username }}</td><td>{{ staff_user.username }}</td><td>{{ staff_user.email|default:'-' }}</td><td>{% if staff_user.is_active %}Active{% else %}Disabled{% endif %}</td><td><div style="display:flex;gap:7px"><a class="btn btn-outline btn-sm" href="{% url 'staff:account_edit' 'staff' staff_user.pk %}">Edit</a><form method="post" action="{% url 'staff:account_delete' 'staff' staff_user.pk %}">{% csrf_token %}<button class="btn btn-outline btn-sm" type="submit">Delete</button></form></div></td></tr>{% empty %}<tr><td colspan="5">No staff accounts have been created yet.</td></tr>{% endfor %}</tbody></table></div></div></section>
 {% endblock %}

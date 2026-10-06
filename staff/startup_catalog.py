@@ -1,0 +1,53 @@
+"""Organization profiles transcribed from modified.xlsx for the public directory."""
+
+STARTUP_CATALOG = [
+    ("Manufacturers", "Nyirenda’s Company", "Pre-paid water meter."),
+    ("Manufacturers", "Guavay Company Limited", "Organic fertilizer and pharmaceutical solutions."),
+    ("Manufacturers", "Bee Venom Sensor", "Sensor device for collecting bee venom."),
+    ("Manufacturers", "Neema Makundi", "Cashew nut almonds marketed through ICT in local and external markets."),
+    ("Manufacturers", "Hellena Sailas", "Recycles plastic waste into EcoBricks building material."),
+    ("Manufacturers", "Hashtech Tanzania Limited", "BodaBoda locator with a SIM enabled tracking device, alarm, SMS alerts, and fuel system disable feature for stolen motorcycles."),
+    ("Fintech / E-commerce", "DayOne Softcom Technologies", "Developed MRECOM, a billing platform used for revenue collection in 15 local government authorities. The workbook also describes a related TAMISEMI platform funded by the World Bank for 18 municipalities."),
+    ("Fintech / E-commerce", "Maxcom Africa Ltd", "Provides electronic payment and financial services through Max Malipo. The workbook reports expansion into Rwanda and Burundi."),
+    ("Fintech / E-commerce", "A-Trader", "Trading platform for the Dar es Salaam Stock Exchange."),
+    ("Fintech / E-commerce", "Inets Co. Ltd", "Remote prepaid electricity meter recharge application for phones and computers."),
+    ("Fintech / E-commerce", "Ports and Marine", "Mkombozi SACCO management software for membership, credit, and daily operations."),
+    ("Fintech / E-commerce", "StraightBook Limited", "Accounting software."),
+    ("Fintech / E-commerce", "BR Solutions", "SMS based service providing farmers with current retail and wholesale produce prices from major markets."),
+    ("Fintech / E-commerce", "ARLZY Microsystems Limited", "Document management system that automates the flow of incoming and outgoing mail and other corporate documents."),
+    ("Fintech / E-commerce", "Young Tech Limited", "Cashew nut documentation management system used in the Lindi and Mtwara regions."),
+    ("Fintech / E-commerce", "Bashcom Enterprises", "Mobile donation system for payments, subscriptions, and contributions to religious institutions."),
+    ("Edutech", "ExamNet", "Education technology solution."),
+    ("Edutech", "UjuziNet", "Education technology and student administration system development."),
+    ("Edutech", "Shule Yetu.Com", "Education platform connecting parents and teachers to support children’s learning."),
+    ("Edutech", "African Great Thinkers", "Online examination system with an academic database and immediate results."),
+    ("Edutech", "Broadband Alliance - UhuruOne, COSTECH & Microsoft", "Broadband4Wote provided affordable wireless access to students and academic staff at higher learning institutions using TV White Spaces technology."),
+    ("Tourism", "Kwe2Africa.com Ltd", "Safari Wallet."),
+    ("Tourism", "Dropping Zone", "Online accommodation booking portal for reservations at mid range hotels."),
+    ("Logistics", "Twende Technologies", "Logistics solution."),
+    ("Logistics", "Time Tickets (Dephics)", "Online event planning, organization, and ticketing system."),
+    ("Real Estate / Services", "Makazi.Com", "House design software and Pazisha marketing linkage."),
+    ("Real Estate / Services", "Fix Chap", "On demand platform connecting customers with technicians."),
+    ("Renewable Energy", "Millennium Engineering Enterprise", "Solar energy solutions."),
+    ("Entertainment", "Bongotoonz", "Animation, including television commercial graphics and short cartoons for television stations, corporations, and advertising agencies."),
+    ("Entertainment", "BK Network (Kipaji App)", "For profit online talent platform."),
+    ("Entertainment", "Moview Developers", "Application that gives African movie fans information about films and cinema halls."),
+    ("Entertainment", "Hainess Faraja", "Creative animation for children."),
+    ("Health", "Digital Brain", "Cloud based knowledge management platform with patient management for health centres and distribution management."),
+    ("Health", "Derick Machango", "eHospital platform."),
+    ("Cyber Security", "Scancode (T) Limited", "Tools for detecting counterfeit products, documents, and certificates."),
+    ("Cyber Security", "Magila Technologies Limited", "Software and cyber security services."),
+    ("Cyber Security", "SasaTech", "Software development and security auditing system."),
+    ("Cyber Security", "Equipoint", "Fleet and fuel monitoring solution."),
+    ("Cyber Security", "Aim Firms", "Online data backup and recovery solution."),
+]
+
+# Year values supplied by the programme. These are cohort years, not inferred
+# founding dates, and are assigned only to matching published directory records.
+STARTUP_COHORT_YEAR_UPDATES = [
+    ("A-Trader", 2017),
+    ("Millennium Engineering Enterprise", 2016),
+    ("Kwe2Africa.com Ltd", 2017),
+    ("Shule Yetu.Com", 2014),
+    ("Time Tickets (Dephics)", 2015),
+]

@@ -14,12 +14,12 @@
         <span class="yc-eyebrow">DTBi &times; BUNI Innovation Hub</span>
 
         <h1 class="yc-hero-title">
-            The companies surpported by COSTECH &rsquo;s 
+            The companies supported by COSTECH &rsquo;s 
             
-          
+            
             <sup>1</sup>
               <p class ="yc-hero-subtitle">
-            <em>under BUNI & DTBi</em>
+            <em>under BUNI &amp; DTBi</em>
             </p>
         </h1>
 
@@ -55,7 +55,6 @@
         <p class="yc-footnote"><sup>1</sup> Counts reflect live registry records at page load.</p>
     </header>
 
-    <!-- ============ SECTOR TICKER ============ -->
     {% if industries %}
     <div class="yc-ticker" aria-hidden="true">
         <div class="yc-ticker-track">
@@ -69,7 +68,25 @@
     </div>
     {% endif %}
 
-    <!-- ============ FEATURED SHOWCASE RAIL ============ -->
+    <section class="card mt-20" id="startupStatistics">
+        <div class="card-header">
+            <div>
+                <span class="overview-kicker">Startup impact</span>
+                <h2>Explore impact by four-year range</h2>
+                <p class="text-muted">Compare startup cohorts, participant support, completed mentoring, outcomes, and jobs. Download a detailed PDF summary or a structured Excel workbook.</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{% url 'impact_explorer' %}" class="filter-bar">
+                <label>Four-year range<select class="filter-select" name="period">{% for item in impact_periods %}<option value="{{ item.key }}" {% if item.key == impact_default_period %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></label>
+                <label>Startup<select class="filter-select" name="startup"><option value="">All published startups</option>{% for item in impact_startups %}<option value="{{ item.pk }}">{{ item.name }}</option>{% endfor %}</select></label>
+                <button class="btn btn-primary" type="submit">View statistics</button>
+                <button class="btn btn-outline" type="submit" name="format" value="pdf">Download PDF</button>
+                <button class="btn btn-outline" type="submit" name="format" value="xlsx">Download Excel</button>
+            </form>
+        </div>
+    </section>
+
     {% if showcase %}
     <section class="yc-showcase" aria-label="Featured startups">
         <div class="yc-showcase-head" data-reveal>
@@ -109,7 +126,6 @@
     </section>
     {% endif %}
 
-    <!-- ============ DIRECTORY ============ -->
     <section class="yc-directory" id="yc-directory">
         <div class="yc-directory-head" data-reveal>
             <div>
@@ -178,7 +194,6 @@
 (function () {
     'use strict';
 
-    /* ---- filters: instant submit on selects, debounced search ---- */
     var filters = document.getElementById('startupFilters');
     if (filters) {
         filters.querySelectorAll('select[name="industry"], select[name="status"], select[name="type"]').forEach(function (select) {
@@ -194,7 +209,6 @@
         }
     }
 
-    /* ---- showcase rail: arrows, drag, scroll-linked pan ---- */
     var rail = document.getElementById('ycRail');
     if (!rail) return;
 
@@ -231,7 +245,6 @@
     window.addEventListener('resize', updateButtons);
     updateButtons();
 
-    /* drag to scroll */
     var dragging = false, startX = 0, startLeft = 0, moved = 0;
     rail.addEventListener('pointerdown', function (e) {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -256,8 +269,6 @@
         if (moved > 6) { e.preventDefault(); e.stopPropagation(); }
     }, true);
 
-    /* scroll-linked pan: showcase drifts as the page scrolls past,
-       until the visitor interacts with the rail */
     var section = rail.closest('.yc-showcase');
     var ticking = false;
     function pan() {
@@ -277,4 +288,5 @@
     pan();
 }());
 </script>
+{% endblock %}
 {% endblock %}

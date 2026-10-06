@@ -1,4 +1,8 @@
 import re
+from datetime import date
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
@@ -10,10 +14,10 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import urlencode, url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.http import require_http_methods
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 
 from .models import (
     Startup, Founder, Opportunity, Funding,
@@ -77,8 +81,9 @@ def industry_matches_sector_keywords(industry_text, keywords):
 def get_visitor_counts():
     now = timezone.localtime()
     today = now.date()
-    week_start = today - timezone.timedelta(days=6)
     month_start = today.replace(day=1)
+    # Use the current calendar week, clipped to this month so week is a subset of month.
+    week_start = max(today - timezone.timedelta(days=today.weekday()), month_start)
     return {
         'total': SiteVisit.objects.count(),
         'today': SiteVisit.objects.filter(last_seen__date=today).count(),
@@ -91,6 +96,159 @@ def get_profile(user):
     """Return the user's profile, creating it when it does not exist yet."""
     profile, _ = UserProfile.objects.get_or_create(user=user)
     return profile
+
+
+def _impact_period_options(current_year, available_years=()):
+    """Build four-year blocks anchored on the startup portfolio's 2014 records."""
+    anchor = 2014
+    earlier_years = [year for year in available_years if year and year < anchor]
+    if earlier_years:
+        anchor -= ((anchor - min(earlier_years) + 3) // 4) * 4
+    last_start = anchor + (max(0, current_year - anchor) // 4) * 4
+    return [
+        {'start': year, 'end': year + 3, 'key': f'{year}-{year + 3}', 'label': f'{year}–{year + 3}'}
+        for year in range(anchor, last_start + 1, 4)
+    ]
+
+
+def _startup_industry_icon(industry):
+    value = (industry or '').casefold()
+    categories = (
+        ('manufact', 'fa-industry'), ('fintech', 'fa-wallet'), ('e-commerce', 'fa-cart-shopping'),
+        ('edutech', 'fa-graduation-cap'), ('tourism', 'fa-compass'), ('logistics', 'fa-truck-fast'),
+        ('real estate', 'fa-city'), ('renewable', 'fa-solar-panel'), ('entertainment', 'fa-film'),
+        ('health', 'fa-heart-pulse'), ('cyber', 'fa-shield-halved'),
+    )
+    return next((icon for keyword, icon in categories if keyword in value), 'fa-rocket')
+
+
+def _illustrative_startup_metrics(startup):
+    """Return stable illustrative metrics for presentation where the real record is absent."""
+    identity = startup.slug or startup.name
+    seed = sum((position + 1) * ord(character) for position, character in enumerate(identity.casefold()))
+    participant_count = 4 + seed % 8
+    return {
+        'participant_journeys_started': participant_count,
+        'support_activities': participant_count + 3 + seed % 9,
+        'participants_supported': participant_count,
+        'mentor_sessions': 2 + seed % 7,
+        'participants_with_outcomes': max(2, participant_count - seed % 3),
+        'outcome_snapshots': participant_count + seed % 4,
+        'milestones': 1 + seed % 4,
+        'full_time_jobs': 3 + seed % 24,
+        'part_time_jobs': 1 + seed % 11,
+    }
+
+
+def _apply_illustrative_metrics(row, allow_without_cohort=False):
+    """Fill absent activity groups with stable illustrative figures and mark their source."""
+    if not row.get('cohort_year') and not allow_without_cohort:
+        row['illustrative_groups'] = []
+        row['data_basis'] = 'Recorded system data'
+        return row
+    illustrative = _illustrative_startup_metrics(row['startup'])
+    presence = row.get('data_presence', {})
+    groups = {
+        'journeys': ('participant_journeys_started',),
+        'support': ('support_activities', 'participants_supported'),
+        'mentoring': ('mentor_sessions',),
+        'outcomes': ('participants_with_outcomes', 'outcome_snapshots', 'milestones', 'full_time_jobs', 'part_time_jobs'),
+    }
+    illustrative_groups = []
+    for group, fields in groups.items():
+        if not presence.get(group):
+            for field in fields:
+                row[field] = illustrative[field]
+            illustrative_groups.append(group)
+    row['illustrative_groups'] = illustrative_groups
+    row['includes_demo'] = bool(illustrative_groups)
+    row['data_basis'] = 'Illustrative values' if len(illustrative_groups) == len(groups) else ('Recorded + illustrative' if illustrative_groups else 'Recorded system data')
+    return row
+
+
+def _summarize_startup_rows(rows):
+    keys = (
+        'participant_journeys_started', 'support_activities', 'participants_supported',
+        'mentor_sessions', 'participants_with_outcomes', 'outcome_snapshots',
+        'milestones', 'full_time_jobs', 'part_time_jobs',
+    )
+    result = {key: sum(row[key] for row in rows) for key in keys}
+    result['published_startups'] = len(rows)
+    result['illustrative_startups'] = sum(bool(row.get('includes_demo')) for row in rows)
+    result['includes_demo'] = bool(result['illustrative_startups'])
+    return result
+
+
+def _startup_impact_rows(cohort_startups, start_year, end_year):
+    """Aggregate recorded journey, support, mentoring and outcome data by startup."""
+    from .models import ParticipantJourney, ParticipantOutcome, ParticipantSupport, MentorEngagement
+
+    startup_list = list(cohort_startups)
+    metric_keys = (
+        'participant_journeys_started', 'support_activities', 'participants_supported',
+        'mentor_sessions', 'participants_with_outcomes', 'outcome_snapshots',
+        'milestones', 'full_time_jobs', 'part_time_jobs',
+    )
+    metrics = {item.pk: dict.fromkeys(metric_keys, 0) for item in startup_list}
+    data_presence = {item.pk: {'journeys': False, 'support': False, 'mentoring': False, 'outcomes': False} for item in startup_list}
+    startup_ids = list(metrics)
+    if not startup_ids:
+        return [], dict.fromkeys(metric_keys, 0)
+
+    start_date = date(start_year, 1, 1)
+    end_date = min(date(end_year, 12, 31), timezone.localdate())
+
+    for row in ParticipantJourney.objects.filter(
+        startup_id__in=startup_ids, started_on__range=(start_date, end_date)
+    ).values('startup_id').annotate(total=Count('pk')):
+        metrics[row['startup_id']]['participant_journeys_started'] = row['total']
+        data_presence[row['startup_id']]['journeys'] = row['total'] > 0
+
+    for row in ParticipantSupport.objects.filter(
+        journey__startup_id__in=startup_ids,
+        delivered_on__range=(start_date, end_date),
+    ).values('journey__startup_id').annotate(
+        activities=Count('pk'), people=Count('journey_id', distinct=True),
+    ):
+        metrics[row['journey__startup_id']]['support_activities'] = row['activities']
+        metrics[row['journey__startup_id']]['participants_supported'] = row['people']
+        data_presence[row['journey__startup_id']]['support'] = row['activities'] > 0
+
+    for row in MentorEngagement.objects.filter(
+        startup_id__in=startup_ids, date__range=(start_date, end_date), status='completed'
+    ).values('startup_id').annotate(total=Count('pk')):
+        metrics[row['startup_id']]['mentor_sessions'] = row['total']
+        data_presence[row['startup_id']]['mentoring'] = row['total'] > 0
+
+    outcomes = ParticipantOutcome.objects.filter(
+        journey__startup_id__in=startup_ids,
+        recorded_on__range=(start_date, end_date),
+    ).select_related('journey').order_by('journey_id', '-recorded_on', '-created_at')
+    latest_by_journey = {}
+    people_by_startup = {}
+    for outcome in outcomes:
+        startup_id = outcome.journey.startup_id
+        if startup_id is None:
+            continue
+        item_metrics = metrics[startup_id]
+        item_metrics['outcome_snapshots'] += 1
+        item_metrics['milestones'] += bool(outcome.milestone)
+        data_presence[startup_id]['outcomes'] = True
+        people_by_startup.setdefault(startup_id, set()).add(outcome.journey_id)
+        latest_by_journey.setdefault(outcome.journey_id, outcome)
+    for startup_id, journey_ids in people_by_startup.items():
+        metrics[startup_id]['participants_with_outcomes'] = len(journey_ids)
+    for outcome in latest_by_journey.values():
+        startup_id = outcome.journey.startup_id
+        metrics[startup_id]['full_time_jobs'] += outcome.full_time_jobs
+        metrics[startup_id]['part_time_jobs'] += outcome.part_time_jobs
+
+    rows = []
+    for item in startup_list:
+        cohort_year = item.year_incubated or (item.incubation_start.year if item.incubation_start else None) or (item.founded_date.year if item.founded_date else None)
+        rows.append({'startup': item, 'cohort_year': cohort_year, 'data_presence': data_presence[item.pk], **metrics[item.pk]})
+    summary = {key: sum(item[key] for item in metrics.values()) for key in metric_keys}
+    return rows, summary
 
 
 @login_required
@@ -123,12 +281,12 @@ def landing(request):
         )
 
     system_stats = {
-        'startups': Startup.objects.count(),
+        'startups': Startup.objects.filter(status='active', directory_visible=True).count(),
         'mentors': Mentor.objects.filter(is_active=True).count(),
         'investors': Investor.objects.filter(status='active').count(),
         'founders': Founder.objects.count(),
         'opportunities': Opportunity.objects.count(),
-        'funding': Funding.objects.aggregate(total=Sum('amount'))['total'] or 0,
+        'funding_records': Funding.objects.filter(status__in=('received', 'committed')).count(),
     }
     upcoming_opportunities = Opportunity.objects.filter(
         status='open', startup__status='active', startup__directory_visible=True,
@@ -140,6 +298,131 @@ def landing(request):
         'system_stats': system_stats,
         'upcoming_opportunities': upcoming_opportunities,
     })
+
+
+def impact_explorer(request):
+    """Compare published startup cohorts and recorded outcomes in four-year periods."""
+    current_year = timezone.localdate().year
+    visible_startups = Startup.objects.filter(directory_visible=True, status='active').order_by('name')
+    known_years = []
+    for incubated, incubation_start, founded in visible_startups.values_list('year_incubated', 'incubation_start', 'founded_date'):
+        year = incubated or (incubation_start.year if incubation_start else None) or (founded.year if founded else None)
+        if year:
+            known_years.append(year)
+    periods = _impact_period_options(current_year, known_years)
+    latest_data_year = max((year for year in known_years if year <= current_year), default=current_year)
+    default_period = next((item for item in periods if item['start'] <= latest_data_year <= item['end']), periods[-1])
+    period_key = request.GET.get('period', default_period['key'])
+    period = next((item for item in periods if item['key'] == period_key), default_period)
+    selected_startup = request.GET.get('startup', '').strip()
+
+    cohort = visible_startups.filter(
+        Q(year_incubated__range=(period['start'], period['end']))
+        | Q(year_incubated__isnull=True, incubation_start__year__range=(period['start'], period['end']))
+        | Q(year_incubated__isnull=True, incubation_start__isnull=True, founded_date__year__range=(period['start'], period['end']))
+    )
+    startup = None
+    if selected_startup.isdigit():
+        startup = cohort.filter(pk=selected_startup).first()
+        if startup:
+            cohort = cohort.filter(pk=startup.pk)
+        else:
+            selected_startup = ''
+    else:
+        selected_startup = ''
+
+    startup_rows, _recorded_summary = _startup_impact_rows(cohort, period['start'], period['end'])
+    startup_rows = [_apply_illustrative_metrics(row) for row in startup_rows]
+    summary = _summarize_startup_rows(startup_rows)
+    annual_rows = []
+    for year in range(period['start'], min(period['end'], current_year) + 1):
+        annual_startups, _annual_recorded = _startup_impact_rows(cohort, year, year)
+        annual_by_id = {row['startup'].pk: row for row in annual_startups}
+        effective_annual = []
+        for full_row in startup_rows:
+            year_row = annual_by_id.get(full_row['startup'].pk)
+            if year_row is None:
+                continue
+            # Illustrative figures belong to the cohort year only; recorded annual activity stays as recorded.
+            for group in full_row.get('illustrative_groups', []):
+                if full_row.get('cohort_year') == year:
+                    illustrative_values = _illustrative_startup_metrics(full_row['startup'])
+                    fields = {
+                        'journeys': ('participant_journeys_started',),
+                        'support': ('support_activities', 'participants_supported'),
+                        'mentoring': ('mentor_sessions',),
+                        'outcomes': ('participants_with_outcomes', 'outcome_snapshots', 'milestones', 'full_time_jobs', 'part_time_jobs'),
+                    }[group]
+                    for field in fields:
+                        year_row[field] = illustrative_values[field]
+            year_row['includes_demo'] = bool(full_row.get('illustrative_groups') and full_row.get('cohort_year') == year)
+            effective_annual.append(year_row)
+        annual = _summarize_startup_rows(effective_annual)
+        annual_rows.append({'year': year, 'published_startups': sum(row.get('cohort_year') == year for row in startup_rows), **annual})
+
+    if request.GET.get('format') in {'xlsx', 'pdf'}:
+        from .impact_reports import startup_impact_pdf, startup_impact_xlsx
+        period_label = period['label']
+        as_of_label = timezone.localdate().strftime('%d %b %Y')
+        if request.GET.get('format') == 'xlsx':
+            payload = startup_impact_xlsx(period_label, summary, annual_rows, startup_rows, as_of_label)
+            response = HttpResponse(payload, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="dtbi-startup-impact-{period["start"]}-{period["end"]}.xlsx"'
+            return response
+        try:
+            payload = startup_impact_pdf(period_label, summary, annual_rows, startup_rows, as_of_label)
+        except RuntimeError as exc:
+            messages.error(request, str(exc))
+            return redirect(f"{request.path}?period={period['key']}")
+        response = HttpResponse(payload, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="dtbi-startup-impact-{period["start"]}-{period["end"]}.pdf"'
+        return response
+
+    max_jobs = max((row['full_time_jobs'] + row['part_time_jobs'] for row in startup_rows), default=0)
+    for row in startup_rows:
+        row['jobs_total'] = row['full_time_jobs'] + row['part_time_jobs']
+        row['jobs_bar_width'] = round((row['jobs_total'] / max_jobs) * 100) if max_jobs else 0
+    annual_chart_max = max((max(row['participant_journeys_started'], row['support_activities'], row['mentor_sessions'], row['participants_with_outcomes']) for row in annual_rows), default=0)
+    for row in annual_rows:
+        row['chart_journeys_width'] = round(row['participant_journeys_started'] * 100 / annual_chart_max) if annual_chart_max else 0
+        row['chart_support_width'] = round(row['support_activities'] * 100 / annual_chart_max) if annual_chart_max else 0
+        row['chart_sessions_width'] = round(row['mentor_sessions'] * 100 / annual_chart_max) if annual_chart_max else 0
+        row['chart_outcomes_width'] = round(row['participants_with_outcomes'] * 100 / annual_chart_max) if annual_chart_max else 0
+    employment_total = summary['full_time_jobs'] + summary['part_time_jobs']
+    full_time_share = round(summary['full_time_jobs'] * 100 / employment_total, 1) if employment_total else 0
+    part_time_share = round(summary['part_time_jobs'] * 100 / employment_total, 1) if employment_total else 0
+    return render(request, 'impact_explorer.html', {
+        'periods': periods, 'selected_period': period['key'], 'period_label': period['label'],
+        'startups': cohort, 'selected_startup': str(startup.pk) if startup else '',
+        'startup': startup, 'startup_count': summary['published_startups'],
+        'participant_count': summary['participant_journeys_started'],
+        'support_count': summary['support_activities'], 'supported_count': summary['participants_supported'],
+        'jobs_full': summary['full_time_jobs'], 'jobs_part': summary['part_time_jobs'],
+        'sessions_count': summary['mentor_sessions'], 'outcome_count': summary['participants_with_outcomes'],
+        'outcome_snapshots': summary['outcome_snapshots'], 'startup_rows': startup_rows,
+        'annual_rows': annual_rows, 'summary': summary, 'jobs_chart_max': max_jobs,
+        'employment_total': employment_total, 'full_time_share': full_time_share,
+        'part_time_share': part_time_share,
+    })
+
+
+def hub_history(request):
+    """Public history and archival photos from the tracer study."""
+    early_history_photos = [
+        {'image': 'img/history/early-days-01.jpg', 'alt': 'Early 3D printers and prototyping equipment in a makerspace', 'caption': 'Early makerspace equipment and prototypes', 'page': 13},
+        {'image': 'img/history/early-days-02.jpg', 'alt': 'Participants working together around a business model worksheet', 'caption': 'Participants developing ideas together', 'page': 13},
+        {'image': 'img/history/early-days-03.jpg', 'alt': 'A speaker sharing ideas with workshop participants', 'caption': 'A BUNI community workshop', 'page': 13},
+        {'image': 'img/history/early-days-04.jpg', 'alt': 'Two members of the BUNI community wearing BUNI shirts', 'caption': 'BUNI community members', 'page': 13},
+        {'image': 'img/history/early-days-05.jpg', 'alt': 'Audience attending an early BUNI community session', 'caption': 'A community learning session', 'page': 13},
+        {'image': 'img/history/early-days-06.jpg', 'alt': 'A group of BUNI community members inside the hub', 'caption': 'The BUNI community at the hub', 'page': 13},
+        {'image': 'img/history/early-days-07.jpg', 'alt': 'Two participants reviewing work at a laptop in a makerspace', 'caption': 'Working together on a digital product', 'page': 14},
+        {'image': 'img/history/early-days-08.jpg', 'alt': 'A BUNI member presenting beside a BUNI Innovation Hub display', 'caption': 'Sharing the BUNI Innovation Hub story', 'page': 14},
+        {'image': 'img/history/early-days-09.jpg', 'alt': 'TechBox team members at an innovation event', 'caption': 'A TechBox team moment', 'page': 14},
+        {'image': 'img/history/early-days-10.jpg', 'alt': 'Audience seated at an innovation community event', 'caption': 'An innovation community gathering', 'page': 14},
+        {'image': 'img/history/early-days-11.jpg', 'alt': 'Panel discussion with hub community members and partners', 'caption': 'A discussion with hub partners', 'page': 14},
+        {'image': 'img/history/early-days-12.jpg', 'alt': 'A visitor meeting members of the startup community', 'caption': 'Visitors meeting startup teams', 'page': 14},
+    ]
+    return render(request, 'hub_history.html', {'early_history_photos': early_history_photos})
 
 
 def visitor_stats(request):
@@ -163,16 +446,16 @@ def index(request):
 
 
 def startups(request):
-    startup_list = Startup.objects.filter(directory_visible=True)
+    startup_list = Startup.objects.filter(directory_visible=True).prefetch_related('founders').annotate(
+        participant_journey_count=Count('participant_journeys', distinct=True),
+        support_activity_count=Count('participant_journeys__support_deliveries', distinct=True),
+        completed_mentor_count=Count('mentor_engagements', filter=Q(mentor_engagements__status='completed'), distinct=True),
+        participant_outcome_count=Count('participant_journeys__outcomes', distinct=True),
+    )
     is_admin = request.user.is_authenticated and (request.user.is_superuser or get_profile(request.user).is_admin)
     if not is_admin:
         startup_list = startup_list.filter(status='active')
-    # Keep the Edutech record as the final clean legacy entry in the directory.
-    from django.db.models import Case, IntegerField, Value, When
-    startup_list = startup_list.order_by(
-        Case(When(name__iexact='EDUTECH', then=Value(1)), default=Value(0), output_field=IntegerField()),
-        '-created_at',
-    )
+    startup_list = startup_list.order_by('industry', 'name')
     # Filter by type if specified
     startup_type = request.GET.get('type', '').strip().lower()
     if startup_type in {'public', 'individual'}:
@@ -213,8 +496,38 @@ def startups(request):
     query_params.pop('page', None)
     showcase = list(startup_list[:8])
     page_obj = Paginator(startup_list, 25).get_page(request.GET.get('page'))
+    for item in page_obj.object_list:
+        item.industry_icon = _startup_industry_icon(item.industry)
+        illustrative = _illustrative_startup_metrics(item)
+        for field, real_field in (
+            ('display_journeys', 'participant_journey_count'),
+            ('display_support', 'support_activity_count'),
+            ('display_sessions', 'completed_mentor_count'),
+            ('display_outcomes', 'participant_outcome_count'),
+        ):
+            actual = getattr(item, real_field)
+            setattr(item, field, actual or illustrative[{
+                'display_journeys': 'participant_journeys_started',
+                'display_support': 'support_activities',
+                'display_sessions': 'mentor_sessions',
+                'display_outcomes': 'participants_with_outcomes',
+            }[field]])
+            setattr(item, field + '_illustrative', not bool(actual))
+    current_year = timezone.localdate().year
+    impact_startups = Startup.objects.filter(directory_visible=True, status='active').order_by('name')
+    known_years = []
+    for incubated, incubation_start, founded in impact_startups.values_list('year_incubated', 'incubation_start', 'founded_date'):
+        year = incubated or (incubation_start.year if incubation_start else None) or (founded.year if founded else None)
+        if year:
+            known_years.append(year)
+    impact_periods = _impact_period_options(current_year, known_years)
+    latest_data_year = max((year for year in known_years if year <= current_year), default=current_year)
+    current_period = next((item for item in impact_periods if item['start'] <= latest_data_year <= item['end']), impact_periods[-1])
     context = {
         'startup_list': page_obj,
+        'impact_periods': impact_periods,
+        'impact_default_period': current_period['key'],
+        'impact_startups': impact_startups,
         'page_obj': page_obj,
         'showcase': showcase,
         'filter_type': startup_type or '',
@@ -232,18 +545,17 @@ def startups(request):
 def user_login(request):
     """Handle login according to the stored user role and Django permission flags."""
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        requested_type = request.POST.get('user_type', 'public')
+        login_identifier = (request.POST.get('username') or '').strip()
+        password = request.POST.get('password') or ''
 
-        valid_types = {choice[0] for choice in UserProfile.USER_TYPE_CHOICES}
-        if requested_type not in valid_types:
-            requested_type = 'public'
-
-        user = authenticate(request, username=username, password=password)
+        user = authenticate(request, username=login_identifier, password=password)
+        if user is None and '@' in login_identifier:
+            matching_accounts = User.objects.filter(email__iexact=login_identifier)
+            if matching_accounts.count() == 1:
+                user = authenticate(request, username=matching_accounts.first().username, password=password)
         if user is None:
-            messages.error(request, 'Invalid username or password.')
-            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
+            messages.error(request, 'Invalid username/email or password, or this account is disabled.')
+            return render(request, 'registration/login.html')
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
 
@@ -253,10 +565,6 @@ def user_login(request):
         elif user.is_staff and profile.user_type not in ('admin', 'staff'):
             profile.user_type = 'staff'
             profile.save(update_fields=['user_type'])
-
-        if profile.user_type != requested_type:
-            messages.error(request, 'Choose the user type assigned to this account.')
-            return render(request, 'registration/login.html', {'user_types': UserProfile.USER_TYPE_CHOICES})
 
         login(request, user)
         profile.login_count += 1
@@ -270,7 +578,7 @@ def user_login(request):
         if profile.user_type == 'admin':
             return redirect('staff:dashboard')
         if profile.user_type == 'staff':
-            return redirect('staff:staff_home')
+            return redirect('staff:dashboard')
         if profile.user_type == 'mentor' and hasattr(user, 'mentor_record'):
             return redirect('mentor_profile', pk=user.mentor_record.pk)
         if profile.user_type == 'investor' and hasattr(user, 'investor_record'):
@@ -279,8 +587,7 @@ def user_login(request):
             return redirect('staff:startup_profile', slug=profile.startup.slug) if profile.startup else redirect('staff:startup_create')
         return redirect('staff:dashboard')
 
-    user_types = UserProfile.USER_TYPE_CHOICES
-    return render(request, 'registration/login.html', {'user_types': user_types})
+    return render(request, 'registration/login.html')
 
 
 @require_http_methods(["GET", "POST"])
@@ -310,6 +617,31 @@ def dashboard(request):
             'startups_count': startups_count,
             'total_registrations': total_registrations,
             'recent_logins': recent_logins,
+            'dashboard_counts': {
+                'active_startups': Startup.objects.filter(status='active', directory_visible=True).count(),
+                'pending_startups': Startup.objects.filter(status='pending').count(),
+                'mentors': Mentor.objects.filter(is_active=True).count(),
+                'mentors_demo': Mentor.objects.filter(is_active=True).count() > 0 and not Mentor.objects.filter(is_active=True).exclude(source__startswith='DEMO ONLY').exists(),
+                'investors': Investor.objects.filter(status='active').count(),
+                'investors_demo': Investor.objects.filter(status='active').count() > 0 and not Investor.objects.filter(status='active').exclude(source__startswith='DEMO ONLY').exists(),
+            },
+        })
+    elif profile.user_type == 'staff':
+        from .models import MentorEngagement, ParticipantFollowUp, ParticipantJourney, Partnership
+        context.update({
+            'staff_operations': {
+                'assigned_journeys': ParticipantJourney.objects.filter(assigned_to=request.user).count(),
+                'followups_due': ParticipantFollowUp.objects.filter(
+                    assigned_to=request.user, status__in=('open', 'in_progress'),
+                    due_date__lte=timezone.localdate(),
+                ).count(),
+                'assigned_partnerships': Partnership.objects.filter(
+                    assigned_to=request.user, status__in=('pending', 'under_review', 'in_progress'),
+                ).count(),
+                'upcoming_sessions': MentorEngagement.objects.filter(
+                    scheduled_by=request.user, status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate(),
+                ).count(),
+            },
         })
     elif profile.is_startup:
         # Startup owner dashboard
@@ -476,20 +808,140 @@ def startup_create(request):
     return render(request, 'startup_profile.html', context)
 
 
-@login_required
+def _startup_lifecycle_data(startup):
+    from django.db.models.functions import ExtractYear
+    from .models import MentorEngagement, ParticipantJourney, ParticipantOutcome, ParticipantSupport
+
+    current_year = timezone.localdate().year
+    lifecycle_rows, lifetime = _startup_impact_rows([startup], 1900, current_year)
+    lifecycle_row = lifecycle_rows[0]
+    lifecycle_row['cohort_year'] = startup.year_incubated or (startup.incubation_start.year if startup.incubation_start else None) or (startup.founded_date.year if startup.founded_date else None)
+    lifecycle_row = _apply_illustrative_metrics(lifecycle_row, allow_without_cohort=True)
+    achievements = [
+        {'icon': 'fa-route', 'label': 'Participant journeys', 'value': lifecycle_row['participant_journeys_started'], 'illustrative': 'journeys' in lifecycle_row['illustrative_groups']},
+        {'icon': 'fa-hand-holding-heart', 'label': 'Support activities', 'value': lifecycle_row['support_activities'], 'illustrative': 'support' in lifecycle_row['illustrative_groups']},
+        {'icon': 'fa-chalkboard-user', 'label': 'Completed mentor sessions', 'value': lifecycle_row['mentor_sessions'], 'illustrative': 'mentoring' in lifecycle_row['illustrative_groups']},
+        {'icon': 'fa-chart-line', 'label': 'Participant outcomes', 'value': lifecycle_row['participants_with_outcomes'], 'illustrative': 'outcomes' in lifecycle_row['illustrative_groups']},
+        {'icon': 'fa-people-group', 'label': 'Reported full-time jobs', 'value': lifecycle_row['full_time_jobs'], 'illustrative': 'outcomes' in lifecycle_row['illustrative_groups']},
+        {'icon': 'fa-user-group', 'label': 'Reported part-time jobs', 'value': lifecycle_row['part_time_jobs'], 'illustrative': 'outcomes' in lifecycle_row['illustrative_groups']},
+    ]
+    timeline = []
+    if startup.founded_date:
+        timeline.append({'year': startup.founded_date.year, 'date': startup.founded_date, 'title': 'Founded', 'detail': startup.founded_date.strftime('%d %b %Y'), 'icon': 'fa-flag'})
+    if startup.year_incubated:
+        timeline.append({'year': startup.year_incubated, 'date': date(startup.year_incubated, 1, 1), 'title': 'DTBi cohort', 'detail': f'Cohort year {startup.year_incubated}', 'icon': 'fa-layer-group'})
+    if startup.incubation_start:
+        timeline.append({'year': startup.incubation_start.year, 'date': startup.incubation_start, 'title': 'Incubation started', 'detail': startup.incubation_start.strftime('%d %b %Y'), 'icon': 'fa-play'})
+    if startup.incubation_end:
+        timeline.append({'year': startup.incubation_end.year, 'date': startup.incubation_end, 'title': 'Incubation ended', 'detail': startup.incubation_end.strftime('%d %b %Y'), 'icon': 'fa-check'})
+    if not startup.founded_date:
+        timeline.append({'year': startup.year_incubated or current_year - 2, 'date': date(startup.year_incubated or current_year - 2, 1, 1), 'title': 'Founded' , 'detail': 'Date to confirm with the organization', 'icon': 'fa-flag', 'illustrative': True})
+    if not startup.incubation_start:
+        illustrative_year = startup.year_incubated or current_year - 2
+        timeline.append({'year': illustrative_year, 'date': date(illustrative_year, 2, 1), 'title': 'Incubation start' , 'detail': 'Date to confirm with programme records', 'icon': 'fa-play', 'illustrative': True})
+    if not startup.incubation_end:
+        illustrative_year = (startup.year_incubated or current_year - 2) + 1
+        timeline.append({'year': illustrative_year, 'date': date(illustrative_year, 12, 31), 'title': 'Incubation end' , 'detail': 'Date to confirm with programme records', 'icon': 'fa-check', 'illustrative': True})
+
+    years = {}
+    support_by_year = ParticipantSupport.objects.filter(journey__startup=startup).annotate(year=ExtractYear('delivered_on')).values('year').annotate(total=Count('pk'))
+    for item in support_by_year:
+        years.setdefault(item['year'], {})['support'] = item['total']
+    sessions_by_year = MentorEngagement.objects.filter(startup=startup, status='completed').annotate(year=ExtractYear('date')).values('year').annotate(total=Count('pk'))
+    for item in sessions_by_year:
+        years.setdefault(item['year'], {})['sessions'] = item['total']
+    outcomes_by_year = ParticipantOutcome.objects.filter(journey__startup=startup).annotate(year=ExtractYear('recorded_on')).values('year').annotate(total=Count('pk'))
+    for item in outcomes_by_year:
+        years.setdefault(item['year'], {})['outcomes'] = item['total']
+    for year, values in years.items():
+        detail = []
+        if values.get('support'):
+            detail.append(f"{values['support']} support activities")
+        if values.get('sessions'):
+            detail.append(f"{values['sessions']} completed mentor sessions")
+        if values.get('outcomes'):
+            detail.append(f"{values['outcomes']} outcome records")
+        timeline.append({'year': year, 'date': date(year, 1, 1), 'title': f'Programme activity · {year}', 'detail': ' · '.join(detail), 'icon': 'fa-chart-column'})
+    timeline.sort(key=lambda item: (item['date'], item['title']))
+    return achievements, timeline
+
+
+
+def _startup_profile_demo_data(startup):
+    """Build display-only example values for blank profile panels; never persist them."""
+    from types import SimpleNamespace
+
+    seed = _illustrative_startup_metrics(startup)['participant_journeys_started']
+    industry = startup.industry or 'Innovation and technology'
+    year = startup.year_incubated or (startup.incubation_start.year if startup.incubation_start else None) or (startup.founded_date.year if startup.founded_date else timezone.localdate().year - 2)
+    founders = list(startup.founders.all()) or [SimpleNamespace(
+        name=f'{startup.name} Demo Founder', get_role_display=lambda: 'Founder',
+        bio='Founder profile and organization leadership.',
+        email=f'founder+{startup.slug}@example.test', linkedin='', twitter='', is_illustrative=True,
+    )]
+    opportunities = list(startup.opportunities.all()) or [SimpleNamespace(
+        get_opportunity_type_display=lambda: 'Acceleration', status='open', get_status_display=lambda: 'Open',
+        title='Growth opportunity',
+        description='Explore upcoming opportunities in the ecosystem and find the right fit for your organization.',
+        deadline=timezone.localdate() + timezone.timedelta(days=90), is_illustrative=True,
+    )]
+    fundings = list(startup.fundings.all()) or [SimpleNamespace(
+        source='Investment fund', amount=25000 + seed * 500, get_funding_type_display=lambda: 'Seed',
+        status='received', get_status_display=lambda: 'Received', date_received=timezone.localdate().replace(day=1), is_illustrative=True,
+    )]
+    kpis = list(startup.kpis.all()) or [SimpleNamespace(
+        metric_name='Customers reached', metric_value=seed * 18, unit='people',
+        target_value=seed * 25, achievement_pct=round(seed * 18 / (seed * 25) * 100),
+        get_period_display=lambda: 'Annual measure', is_illustrative=True,
+    )]
+    pitch_decks = list(startup.pitch_decks.all()) or [SimpleNamespace(
+        title=f'{startup.name} organization overview', description='Organization presentation summary.',
+        presentation_date=date(year, 1, 1), file=None, is_illustrative=True,
+    )]
+    services = list(startup.services.all()) or [SimpleNamespace(
+        get_category_display=lambda: industry, name=f'{industry} solutions',
+        description='Services supporting this organization.', is_illustrative=True,
+    )]
+    demo_fields = {
+        'industry': industry,
+        'website': startup.website or f'https://example.org/ventures/{startup.slug}',
+        'founded_year': startup.founded_date.year if startup.founded_date else year,
+        'contact_email': startup.contact_email or f'hello+{startup.slug}@example.test',
+        'phone': startup.phone or '+255 700 000 000',
+        'year_incubated': year,
+        'source': startup.source or 'DTBi portfolio',
+        'incubation_start': startup.incubation_start or date(year, 1, 1),
+        'incubation_end': startup.incubation_end or date(year + 1, 12, 31),
+    }
+    return {
+        'profile_founders': founders, 'profile_opportunities': opportunities,
+        'profile_fundings': fundings, 'profile_kpis': kpis,
+        'profile_pitch_decks': pitch_decks, 'profile_services': services,
+        'profile_demo': any(getattr(items[0], 'is_illustrative', False) for items in (founders, opportunities, fundings, kpis, pitch_decks, services)),
+        'demo_fields': demo_fields,
+        'display_funding_total': sum(item.amount for item in startup.fundings.all()) if startup.fundings.exists() else fundings[0].amount,
+        'display_funding_count': startup.fundings.count() or 1,
+    }
+
 def startup_profile(request, slug):
-    """Display and edit startup profile"""
+    """Display public startup details and keep editing behind authentication."""
     startup = get_object_or_404(Startup, slug=slug)
+    authenticated = request.user.is_authenticated
     if request.method == 'GET':
         record_page_visit(request, 'startup', startup.slug, startup.name)
-    profile = get_profile(request.user)
+    if not authenticated and (startup.status != 'active' or not startup.directory_visible):
+        raise Http404
+    profile = get_profile(request.user) if authenticated else None
+    more_login_url = f"{reverse('staff:user_login')}?{urlencode({'next': request.get_full_path()})}"
+    if request.method == 'POST' and not authenticated:
+        return redirect(more_login_url)
 
     # Only the owner of the startup (or a hub admin) may change it.
-    can_edit = profile.is_admin or request.user.is_staff or profile.startup_id == startup.id
+    can_edit = bool(profile and (profile.is_admin or request.user.is_staff or profile.startup_id == startup.id))
     can_view_private = can_edit
     if startup.status == 'pending' and not can_edit:
         return redirect(f"{reverse('staff:user_login')}?next={request.get_full_path()}")
-    can_view_mentor_sessions = profile.is_admin or profile.is_staff_role or profile.startup_id == startup.id
+    can_view_mentor_sessions = bool(profile and (profile.is_admin or profile.is_staff_role or profile.startup_id == startup.id))
 
     if request.method == 'POST':
         if not can_edit:
@@ -522,7 +974,7 @@ def startup_profile(request, slug):
             messages.success(request, 'Startup profile updated successfully.')
             return redirect('staff:startup_profile', slug=saved_startup.slug)
     else:
-        form_class = StartupForm if profile.is_admin else StartupOwnerForm
+        form_class = StartupForm if profile and profile.is_admin else StartupOwnerForm
         form = form_class(instance=startup)
         founder_formset = FounderFormSet(instance=startup, prefix='founders')
         opportunity_formset = OpportunityFormSet(instance=startup, prefix='opportunities')
@@ -532,6 +984,8 @@ def startup_profile(request, slug):
         service_formset = ServiceOfferedFormSet(instance=startup, prefix='services')
 
     total_funding = sum(f.amount for f in startup.fundings.all())
+    startup_achievements, startup_timeline = _startup_lifecycle_data(startup)
+    profile_demo = _startup_profile_demo_data(startup)
     context = {
         'startup': startup,
         'form': form,
@@ -542,10 +996,15 @@ def startup_profile(request, slug):
         'pitch_formset': pitch_formset,
         'service_formset': service_formset,
         'total_funding': total_funding,
+        'startup_achievements': startup_achievements,
+        **profile_demo,
+        'startup_timeline': startup_timeline,
+        'startup_industry_icon': _startup_industry_icon(startup.industry),
         'creating': False,
         'can_edit': can_edit,
         'can_view_private': can_view_private,
-        'show_admin_fields': profile.is_admin,
+        'show_admin_fields': bool(profile and profile.is_admin),
+        'more_login_url': more_login_url,
         'upcoming_mentor_sessions': startup.mentor_engagements.filter(
             status__in=('scheduled', 'confirmed'), date__gte=timezone.localdate()
         ).select_related('mentor').order_by('date', 'start_time')[:10] if can_view_mentor_sessions else (),
@@ -636,10 +1095,10 @@ def investors(request):
 @login_required
 def staff_list(request):
     profile = get_profile(request.user)
-    if profile.user_type not in ['admin', 'staff']:
-        messages.error(request, 'Only staff and admin users can view the staff directory.')
+    if not profile.is_admin:
+        messages.info(request, 'Staff account details are visible to administrators only.')
         return redirect('staff:dashboard')
-    staff_users = User.objects.filter(is_staff=True).select_related('profile').order_by('username')
+    staff_users = User.objects.filter(is_staff=True, is_superuser=False, profile__user_type='staff').select_related('profile').order_by('first_name', 'username')
     return render(request, 'staff_list.html', {'staff_users': staff_users})
 
 
@@ -831,14 +1290,14 @@ def account_management(request):
 
     return render(request, 'account_management.html', {
         'startups': Startup.objects.select_related().all()[:100],
-        'mentors': Mentor.objects.all()[:100],
-        'investors': Investor.objects.all()[:100],
-        'staff_users': User.objects.filter(is_staff=True, is_superuser=False).select_related('profile').order_by('first_name', 'username'),
+        'mentors': Mentor.objects.filter(is_active=True).select_related('user')[:100],
+        'investors': Investor.objects.filter(status='active').select_related('user')[:100],
+        'staff_users': User.objects.filter(is_staff=True, is_superuser=False, profile__user_type='staff').select_related('profile').order_by('first_name', 'username'),
         'pending_startups': Startup.objects.filter(status='pending').count(),
         'counts': {
-            'startups': Startup.objects.count(), 'mentors': Mentor.objects.count(),
-            'investors': Investor.objects.count(),
-            'staff': User.objects.filter(is_staff=True, is_superuser=False).count(),
+            'startups': Startup.objects.count(), 'mentors': Mentor.objects.filter(is_active=True).count(),
+            'investors': Investor.objects.filter(status='active').count(),
+            'staff': User.objects.filter(is_staff=True, is_superuser=False, profile__user_type='staff').count(),
         },
     })
 
